@@ -1,0 +1,1586 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Zuflussverteiler</title>
+<style>
+  /* Dunkelgrüne Farbwelt — bewusst immer gleich, unabhängig davon, ob das
+     Gerät auf hell oder dunkel steht. Alle Textfarben sind gegen die beiden
+     Untergründe auf Lesbarkeit geprüft (mindestens 4,5:1).
+     Die beiden Diagrammpaletten sind je für sich auf Unterscheidbarkeit
+     geprüft, auch bei Farbsehschwäche. Bankguthaben trägt in beiden
+     Diagrammen dasselbe Blau, weil es dieselbe Sache ist. */
+  :root {
+    --bg: #0b1d16;
+    --card: #12281f;
+    --ink: #e8f1ea;
+    --ink-mute: #9db5a8;
+    --ink-faint: #7a978a;
+    --line: #1f3d31;
+    --unter: #79b0f5;
+    --ueber: #e9a13b;
+    --gut: #4fd39c;
+    --warn: #ff9086;
+    --radius: 14px;
+
+    /* Anlageklassen (Tortendiagramm) */
+    --k-bank: #3987e5;
+    --k-etf: #d95926;
+    --k-pm: #199e70;
+    --k-edel: #c98500;
+    --k-krypto: #d55181;
+
+    /* Gruppen (Streifen im Gesamtvermögen) */
+    --g-bespart: #9085e9;
+    --g-alt: #e66767;
+    --g-beob: #008300;
+    --g-bank: #3987e5;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    padding: 16px 14px calc(48px + env(safe-area-inset-bottom));
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 2px; letter-spacing: -0.01em; }
+  h2 { font-size: 15px; margin: 0 0 10px; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-mute); }
+  .sub { color: var(--ink-faint); font-size: 13px; margin: 0 0 18px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+
+  .hinweis {
+    display: flex; gap: 8px; align-items: flex-start;
+    font-size: 13px; color: var(--ink-mute);
+    background: var(--card); border: 1px dashed var(--line);
+    border-radius: var(--radius); padding: 10px 12px; margin-bottom: 14px;
+  }
+  .hinweis[hidden] { display: none; }
+  .hinweis.achtung { border-style: solid; border-color: color-mix(in srgb, var(--ueber) 50%, var(--line)); color: var(--ink); }
+  .knopf-inline {
+    display: inline; padding: 0; margin-left: 4px; border: none; background: none;
+    color: var(--unter); font-size: inherit; font-weight: 600; text-decoration: underline; cursor: pointer;
+  }
+  .knopf-gross {
+    width: 100%; padding: 14px 16px; font-size: 15.5px; font-weight: 650;
+    color: #06210f; background: var(--gut); border: none; border-radius: 11px;
+  }
+  .knopf-gross:disabled { background: var(--line); color: var(--ink-faint); }
+  .knopf-gross:active:not(:disabled) { filter: brightness(.93); }
+  .speicherleiste {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: var(--card); border-top: 1px solid var(--line);
+    box-shadow: 0 -8px 24px rgba(0,0,0,.35);
+  }
+  .speicherleiste[hidden] { display: none; }
+  .speicherleiste .sl-text { flex: 1 1 auto; font-size: 13.5px; color: var(--ueber); font-weight: 600; }
+  .speicherleiste .knopf-gross { width: auto; flex: 0 0 auto; padding: 11px 20px; }
+  body.hat-leiste { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+
+  .feld { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 0; }
+  .feld + .feld { border-top: 1px solid var(--line); }
+  .feld label { font-size: 15px; color: var(--ink-mute); flex: 1 1 auto; }
+  .eingabe { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+  input[type=text] {
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    width: 8.5em;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  input[type=text]:focus { outline: 2px solid var(--unter); outline-offset: -1px; }
+  input.schmal { width: 6em; }
+  .einheit { color: var(--ink-faint); font-size: 14px; width: 1.1em; }
+
+  /* Ampelrahmen um den Kasten mit dem Bankguthaben */
+  .puffer-kasten { border-width: 3px; border-color: var(--rahmen, var(--line)); transition: border-color .2s ease; }
+  .fb-kopf { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .fb-kopf h2 { margin: 0; }
+  .fb-chip {
+    flex: 0 0 auto; font-size: 12.5px; font-weight: 650; white-space: nowrap;
+    font-variant-numeric: tabular-nums; color: var(--rahmen, var(--ink-mute));
+    border: 1px solid color-mix(in srgb, var(--rahmen, var(--line)) 45%, var(--line));
+    border-radius: 999px; padding: 2px 9px;
+  }
+  .fb-chip[hidden] { display: none; }
+
+  .betrag-gross {
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  }
+  .betrag-gross .wert { font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .betrag-gross .wert.null { color: var(--ink-faint); font-size: 19px; font-weight: 600; }
+  .betrag-gross .beschriftung { font-size: 13px; color: var(--ink-mute); }
+
+  .kacheln { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .kachel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; }
+  .kachel .k-titel { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-faint); }
+  .kachel .k-wert { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 3px; }
+  .kachel.rest .k-wert { color: var(--ueber); }
+  .kachel.rest.leer .k-wert { color: var(--ink); }
+
+  .pos { padding: 12px 0; }
+  .pos + .pos { border-top: 1px solid var(--line); }
+  .pos-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .pos-name { font-weight: 600; font-size: 15.5px; }
+  .pos-kauf { font-variant-numeric: tabular-nums; font-weight: 650; font-size: 15.5px; color: var(--gut); white-space: nowrap; }
+  .pos-kauf.keiner { color: var(--ink-faint); font-weight: 500; }
+  .pos-zahlen { display: flex; gap: 10px; font-size: 12.5px; color: var(--ink-mute); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .pos-zahlen .abw.unter { color: var(--unter); }
+  .pos-zahlen .abw.ueber { color: var(--ueber); }
+
+  .balken { position: relative; height: 8px; background: var(--bg); border-radius: 4px; margin: 8px 0 9px; overflow: hidden; }
+  .balken::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--ink-faint); opacity: .5; }
+  .balken i { position: absolute; top: 0; bottom: 0; border-radius: 3px; display: block; }
+  .balken i.unter { background: var(--unter); }
+  .balken i.ueber { background: var(--ueber); }
+
+  .block { border: 1px solid var(--line); border-radius: 12px; padding: 2px 12px 4px; margin: 12px 0; background: var(--bg); }
+  .block-kopf { padding: 10px 0 6px; font-size: 12.5px; color: var(--ink-mute); }
+  .block-kopf b { display: block; color: var(--ink); font-size: 13.5px; margin-bottom: 1px; }
+  .block .pos:first-of-type { border-top: 1px solid var(--line); }
+
+  .nebenrechnung { opacity: .72; }
+  .nebenrechnung .card { background: transparent; border-style: dashed; }
+  .summe-zeile { display: flex; justify-content: space-between; padding: 10px 0 2px; margin-top: 4px; border-top: 1px solid var(--line); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* Anlageklassen */
+  .klassen-inhalt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin-top: 10px; }
+  .torte-flaeche { flex: 0 0 auto; margin: 0 auto; }
+  .torte-flaeche svg { display: block; width: 190px; height: 190px; }
+  .klassen-liste { flex: 1 1 240px; min-width: 0; }
+  .k-zeile {
+    display: flex; align-items: baseline; gap: 8px; padding: 7px 0; font-size: 14px;
+    border-radius: 6px; transition: background-color .12s ease;
+  }
+  .k-zeile + .k-zeile { border-top: 1px solid var(--line); }
+  .k-zeile.aktiv { background: color-mix(in srgb, var(--ink) 9%, transparent); }
+  .k-punkt { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+  .k-name { flex: 1 1 auto; color: var(--ink-mute); }
+  .k-euro { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .k-proz { font-variant-numeric: tabular-nums; color: var(--ink-faint); width: 5.1em; text-align: right; font-size: 13px; }
+  .t-stueck { cursor: default; transition: opacity .12s ease; }
+  .t-stueck.blass { opacity: .32; }
+  .t-mitte { fill: var(--ink-faint); font-size: 11px; text-anchor: middle; }
+  .t-mitte.wert { fill: var(--ink); font-size: 15px; font-weight: 600; }
+  .p-bank { background: var(--k-bank); } .f-k-bank { fill: var(--k-bank); }
+  .p-etf { background: var(--k-etf); } .f-k-etf { fill: var(--k-etf); }
+  .p-pm { background: var(--k-pm); } .f-k-pm { fill: var(--k-pm); }
+  .p-edel { background: var(--k-edel); } .f-k-edel { fill: var(--k-edel); }
+  .p-krypto { background: var(--k-krypto); } .f-k-krypto { fill: var(--k-krypto); }
+
+  .vermoegen { text-align: left; }
+  .vermoegen .v-titel { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-faint); }
+  .v-kopf { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .vermoegen .v-wert { font-size: 32px; font-weight: 700; letter-spacing: -0.025em; margin: 2px 0 0; }
+  .v-delta { font-size: 13px; color: var(--ink-mute); font-variant-numeric: tabular-nums; margin: 2px 0 10px; min-height: 1.2em; }
+  .v-delta .hoch { color: var(--gut); font-weight: 600; }
+  .v-delta .runter { color: var(--warn); font-weight: 600; }
+  .v-streifen { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--bg); margin-bottom: 12px; }
+  .v-streifen i { display: block; height: 100%; }
+  .v-zeile { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; font-size: 14px; }
+  .v-zeile + .v-zeile { border-top: 1px solid var(--line); }
+  .v-punkt { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+  .v-name { flex: 1 1 auto; color: var(--ink-mute); }
+  .v-euro { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .v-proz { font-variant-numeric: tabular-nums; color: var(--ink-faint); width: 5.1em; text-align: right; font-size: 13px; }
+  .f-bespart { background: var(--g-bespart); }
+  .f-alt { background: var(--g-alt); }
+  .f-beob { background: var(--g-beob); }
+  .f-bank { background: var(--g-bank); }
+
+  details { margin-bottom: 14px; }
+  summary {
+    cursor: pointer; list-style: none; padding: 12px 14px;
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    font-size: 14px; color: var(--ink-mute);
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: " ▾"; color: var(--ink-faint); }
+  details[open] summary { border-radius: var(--radius) var(--radius) 0 0; border-bottom: none; }
+  details[open] summary::after { content: " ▴"; }
+  details .card { border-radius: 0 0 var(--radius) var(--radius); margin-bottom: 0; }
+
+  /* Verlauf */
+  .knopf-verlauf { flex: 0 0 auto; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--unter); border-color: color-mix(in srgb, var(--unter) 35%, var(--line)); }
+  dialog {
+    width: min(640px, 100vw - 20px); max-height: 88vh; padding: 0; border: none;
+    border-radius: var(--radius); background: var(--card); color: var(--ink);
+    box-shadow: 0 18px 48px rgba(0,0,0,.45);
+  }
+  dialog::backdrop { background: rgba(4, 12, 9, .66); }
+  .d-kopf {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 14px 14px 12px; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; background: var(--card); border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .d-kopf h2 { margin: 0; font-size: 14px; }
+  .d-koerper { padding: 14px; overflow-y: auto; max-height: calc(88vh - 56px); }
+  .verlauf-flaeche { position: relative; margin: 4px 0 6px; }
+  .verlauf-flaeche svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+  .v-tooltip {
+    position: absolute; pointer-events: none; opacity: 0; transform: translate(-50%, -100%);
+    background: var(--ink); color: var(--card); font-size: 12px; line-height: 1.35;
+    padding: 5px 8px; border-radius: 7px; white-space: nowrap; font-variant-numeric: tabular-nums;
+    transition: opacity .12s ease;
+  }
+  .v-tooltip.an { opacity: 1; }
+  .v-leer { padding: 26px 6px; text-align: center; color: var(--ink-mute); font-size: 14px; }
+  .vl-netz { stroke: var(--line); stroke-width: 1; }
+  .vl-flaeche { fill: var(--unter); opacity: .12; }
+  .vl-linie { fill: none; stroke: var(--unter); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .vl-punkt { fill: var(--unter); }
+  .vl-ende { fill: var(--unter); stroke: var(--card); stroke-width: 2; }
+  .vl-kreuz { stroke: var(--ink-faint); stroke-width: 1; }
+  .vl-schrift { fill: var(--ink-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .vl-schrift.stark { fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .v-tabelle { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  .v-tabelle th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-faint); font-weight: 600; padding: 8px 4px; border-bottom: 1px solid var(--line); }
+  .v-tabelle th.r, .v-tabelle td.r { text-align: right; }
+  .v-tabelle td { padding: 9px 4px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .v-tabelle td:first-child { white-space: normal; }
+  .v-tabelle tr:last-child td { border-bottom: none; }
+  .v-tabelle .hoch { color: var(--gut); }
+  .v-tabelle .runter { color: var(--warn); }
+  .v-loeschen { padding: 4px 8px; font-size: 15px; line-height: 1; color: var(--ink-faint); border-color: transparent; background: transparent; }
+  .v-loeschen:hover, .v-loeschen:focus-visible { color: var(--warn); border-color: var(--line); }
+  :focus-visible { outline: 2px solid var(--unter); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  .notiz { font-size: 12.5px; color: var(--ink-mute); margin: 10px 0 0; }
+  .notiz.warn { color: var(--warn); }
+  .notiz.merken { color: var(--ueber); }
+  .fuss { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 18px; font-size: 12.5px; color: var(--ink-faint); }
+  button {
+    font: inherit; font-size: 13px; padding: 9px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink-mute); cursor: pointer;
+  }
+  button:active { transform: translateY(1px); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Zuflussverteiler</h1>
+  <p class="sub" id="heute"></p>
+
+  <div class="hinweis achtung" id="speicherHinweis" hidden>
+    <span aria-hidden="true">⚠️</span>
+    <span id="speicherHinweisText"></span>
+  </div>
+
+  <section class="card klassen" aria-label="Vermögen nach Anlageklassen">
+    <div class="v-kopf">
+      <div class="v-titel">Vermögen nach Anlageklassen</div>
+      <button type="button" class="knopf-verlauf" id="verlaufOeffnen">Verlauf</button>
+    </div>
+    <div class="klassen-inhalt">
+      <div class="torte-flaeche">
+        <svg id="torte" role="img" aria-label="Aufteilung des Gesamtvermögens nach Anlageklassen"></svg>
+      </div>
+      <div class="klassen-liste" id="klassenListe"></div>
+    </div>
+  </section>
+
+  <section class="card vermoegen" aria-label="Gesamtvermögen">
+    <div class="v-titel">Gesamtvermögen</div>
+    <div class="v-wert" id="vGesamt">—</div>
+    <div class="v-delta" id="vDelta"></div>
+    <div class="v-streifen" id="vStreifen" aria-hidden="true"></div>
+    <div id="vAufschluesselung"></div>
+  </section>
+
+  <dialog id="verlaufFenster" aria-labelledby="verlaufTitel">
+    <div class="d-kopf">
+      <h2 id="verlaufTitel">Verlauf Gesamtvermögen</h2>
+      <button type="button" id="verlaufSchliessen">Schließen</button>
+    </div>
+    <div class="d-koerper">
+      <div class="kacheln" id="verlaufKacheln"></div>
+      <div class="verlauf-flaeche" id="verlaufFlaeche">
+        <svg id="verlaufBild" role="img" aria-label="Verlauf des Gesamtvermögens"></svg>
+        <div class="v-tooltip" id="verlaufTooltip"></div>
+      </div>
+      <div id="verlaufTabelle"></div>
+      <p class="notiz" id="verlaufNotiz"></p>
+    </div>
+  </dialog>
+
+  <div class="hinweis" id="tagHinweis" hidden>
+    <span aria-hidden="true">🗓️</span>
+    <span id="tagHinweisText"></span>
+  </div>
+
+  <section class="card puffer-kasten" id="pufferKasten" aria-label="Freier Betrag">
+    <div class="fb-kopf">
+      <h2>Freier Betrag</h2>
+      <span class="fb-chip" id="pufferChip" hidden></span>
+    </div>
+    <div class="feld">
+      <label for="guthaben">Bankguthaben</label>
+      <span class="eingabe"><input type="text" id="guthaben" inputmode="decimal" autocomplete="off" placeholder="0,00"><span class="einheit">€</span></span>
+    </div>
+    <div class="feld">
+      <label for="puffer">Cash-Puffer</label>
+      <span class="eingabe"><input type="text" id="puffer" inputmode="decimal" autocomplete="off"><span class="einheit">€</span></span>
+    </div>
+    <div class="betrag-gross">
+      <span class="beschriftung" id="freiBeschriftung">Zu verteilen</span>
+      <span class="wert" id="freiWert">—</span>
+    </div>
+  </section>
+
+  <div class="kacheln">
+    <div class="kachel"><div class="k-titel">Basis</div><div class="k-wert" id="kBasis">—</div></div>
+    <div class="kachel"><div class="k-titel">Verplant</div><div class="k-wert" id="kVerplant">—</div></div>
+    <div class="kachel rest leer"><div class="k-titel">Rest</div><div class="k-wert" id="kRest">—</div></div>
+  </div>
+  <p class="notiz" id="restNotiz"></p>
+
+  <section class="card" aria-label="Positionen" style="margin-top:14px">
+    <h2>Positionen</h2>
+    <div id="positionen"></div>
+  </section>
+
+  <section class="nebenrechnung" aria-label="Altlasten">
+    <div class="card">
+      <h2>Altlasten (werden abgebaut)</h2>
+      <p class="notiz" style="margin:-4px 0 6px">Zählen nicht zur Basis und bekommen kein Geld.</p>
+      <div id="altlasten"></div>
+      <div class="summe-zeile"><span>Summe</span><span id="altSumme">—</span></div>
+    </div>
+  </section>
+
+  <section class="nebenrechnung" aria-label="Beobachten">
+    <div class="card">
+      <h2>Beobachten (bleibt liegen)</h2>
+      <p class="notiz" style="margin:-4px 0 6px">Kein Zielgewicht, keine Käufe, nicht in der Basis.</p>
+      <div id="beobachtet"></div>
+      <div class="summe-zeile"><span>Summe</span><span id="beobSumme">—</span></div>
+    </div>
+  </section>
+
+  <details id="gewichteBox">
+    <summary>Zielgewichte anpassen</summary>
+    <div class="card">
+      <div id="gewichte"></div>
+      <p class="notiz" id="gewichteSumme"></p>
+    </div>
+  </details>
+
+  <section class="card" aria-label="Speichern">
+    <button type="button" class="knopf-gross" id="speichernKnopf">Änderungen speichern</button>
+    <p class="notiz" id="speicherStand"></p>
+  </section>
+
+  <div class="fuss">
+    <span id="fassung"></span>
+    <button type="button" id="zuruecksetzen">Alles zurücksetzen</button>
+  </div>
+</main>
+
+<div class="speicherleiste" id="speicherLeiste" hidden>
+  <span class="sl-text">Nicht gespeicherte Änderungen</span>
+  <button type="button" class="knopf-gross" id="speichernKnopf2">Speichern</button>
+</div>
+
+<script>
+/* #region verteilung — reine Rechenlogik, ohne Oberfläche (wird von test/verteilung.test.js geprüft) */
+(function (global) {
+  "use strict";
+
+  var SCHRITT = 50;      // alle Beträge auf 50 € gerundet
+  var MIN_KAUF = 200;    // Mindestbetrag pro Order
+
+  /**
+   * Freier Betrag am 15.:
+   *   Liegt das Bankguthaben unter dem Puffer, wird nichts investiert.
+   *   Sonst wird der Betrag über dem Puffer auf volle 100 € AUFgerundet —
+   *   jeder angefangene Hunderter zählt voll.
+   *   Es wird nie weniger als der Mindestbetrag einer Order investiert:
+   *   Steht genau der Puffer auf dem Konto, sind es trotzdem 200 €.
+   */
+  function berechneFreienBetrag(guthaben, puffer) {
+    var roh = (Number(guthaben) || 0) - (Number(puffer) || 0);
+    if (!isFinite(roh) || roh < 0) return 0;
+    roh = Math.round(roh * 100) / 100;              // auf Cent, gegen Rundungsstaub
+    return Math.max(MIN_KAUF, Math.ceil(roh / 100) * 100);
+  }
+
+  /**
+   * Verteilt den Betrag proportional zu den Lücken, in Schritten von 50 €.
+   * Einheiten mit mehreren Mitgliedern (Gold+Silber) laufen in Schritten von
+   * 50 € × Mitgliederzahl, damit die Hälften glatt bleiben.
+   * Rest wird nach dem Größte-Reste-Verfahren vergeben.
+   */
+  function verteileProportional(betrag, kandidaten) {
+    var gesamtLuecke = kandidaten.reduce(function (s, e) { return s + e.luecke; }, 0);
+    var gesamtSchritte = Math.floor(betrag / SCHRITT);
+    var stufe = kandidaten.map(function (e) { return e.schritt / SCHRITT; });
+    var ideal = kandidaten.map(function (e) { return gesamtSchritte * e.luecke / gesamtLuecke; });
+    var zu = ideal.map(function (v, i) { return Math.floor(v / stufe[i]) * stufe[i]; });
+    var rest = gesamtSchritte - zu.reduce(function (a, b) { return a + b; }, 0);
+
+    var reihenfolge = kandidaten.map(function (_, i) { return i; }).sort(function (a, b) {
+      var ra = ideal[a] - zu[a], rb = ideal[b] - zu[b];
+      if (Math.abs(ra - rb) > 1e-9) return rb - ra;
+      return kandidaten[b].luecke - kandidaten[a].luecke;
+    });
+
+    var fortschritt = true;
+    while (rest > 0 && fortschritt) {
+      fortschritt = false;
+      for (var n = 0; n < reihenfolge.length && rest > 0; n++) {
+        var i = reihenfolge[n];
+        if (rest >= stufe[i]) { zu[i] += stufe[i]; rest -= stufe[i]; fortschritt = true; }
+      }
+    }
+
+    var ergebnis = new Map();
+    kandidaten.forEach(function (e, i) { ergebnis.set(e.key, zu[i] * SCHRITT); });
+    return ergebnis;
+  }
+
+  /**
+   * Hauptrechnung.
+   * positionen: [{ id, name, gewicht (Prozent), wert (Euro), block (Gruppenname|null) }]
+   * Rückgabe enthält Basis, Sollwerte, Lücken, Kaufbeträge je Position und Rest.
+   */
+  function berechneVerteilung(betrag, positionen) {
+    betrag = Math.max(0, Number(betrag) || 0);
+
+    var basis = positionen.reduce(function (s, p) { return s + (Number(p.wert) || 0); }, 0);
+    var basisNachKauf = basis + betrag;
+
+    // Positionen zu Einheiten bündeln (Gold + Silber = eine Einheit)
+    var nachKey = new Map();
+    var einheiten = [];
+    positionen.forEach(function (p) {
+      var key = p.block || p.id;
+      var e = nachKey.get(key);
+      if (!e) {
+        e = { key: key, block: p.block || null, mitglieder: [], gewicht: 0, wert: 0 };
+        nachKey.set(key, e);
+        einheiten.push(e);
+      }
+      e.mitglieder.push(p);
+      e.gewicht += Number(p.gewicht) || 0;
+      e.wert += Number(p.wert) || 0;
+    });
+
+    einheiten.forEach(function (e) {
+      e.orders = e.mitglieder.length;                 // Block belegt zwei Orders
+      e.schritt = SCHRITT * e.orders;                 // Block auf volle 100 €
+      e.min = MIN_KAUF * e.orders;                    // Block braucht mindestens 400 €
+      e.soll = (e.gewicht / 100) * basisNachKauf;
+      e.luecke = Math.max(0, e.soll - e.wert);
+    });
+
+    var maxOrders = Math.floor(betrag / MIN_KAUF);
+    var kandidaten = einheiten.filter(function (e) { return e.luecke > 0; })
+                              .sort(function (a, b) { return b.luecke - a.luecke; });
+    var ausgeschlossen = [];
+
+    // Regel 7: mehr Kandidaten als bezahlbare Orders -> größte Lücken gewinnen
+    var orderBedarf = function () {
+      return kandidaten.reduce(function (s, e) { return s + e.orders; }, 0);
+    };
+    while (kandidaten.length && orderBedarf() > maxOrders) {
+      ausgeschlossen.push({ einheit: kandidaten.pop(), grund: "orders" });
+    }
+
+    // Regel 6: kleinste Zuteilung unter dem Mindestbetrag fliegt raus, dann neu verteilen
+    var zuteilung = new Map();
+    while (kandidaten.length) {
+      zuteilung = verteileProportional(betrag, kandidaten);
+      var verstoesse = kandidaten.filter(function (e) {
+        return zuteilung.get(e.key) + 1e-9 < e.min;
+      });
+      if (!verstoesse.length) break;
+      var raus = verstoesse[verstoesse.length - 1];   // kleinste Lücke unter den Verstößen
+      kandidaten = kandidaten.filter(function (e) { return e !== raus; });
+      ausgeschlossen.push({ einheit: raus, grund: "min" });
+      zuteilung = new Map();
+    }
+
+    // Ergebnis je Position; Blockbetrag exakt halbieren
+    var kaufJePosition = new Map();
+    var verplant = 0;
+    einheiten.forEach(function (e) {
+      var betragEinheit = zuteilung.get(e.key) || 0;
+      e.kauf = betragEinheit;
+      verplant += betragEinheit;
+      e.mitglieder.forEach(function (p) {
+        kaufJePosition.set(p.id, betragEinheit / e.mitglieder.length);
+      });
+    });
+
+    return {
+      betrag: betrag,
+      basis: basis,
+      basisNachKauf: basisNachKauf,
+      maxOrders: maxOrders,
+      einheiten: einheiten,
+      kauf: kaufJePosition,
+      verplant: verplant,
+      rest: betrag - verplant,
+      ausgeschlossen: ausgeschlossen
+    };
+  }
+
+  global.Zuflussverteiler = {
+    SCHRITT: SCHRITT,
+    MIN_KAUF: MIN_KAUF,
+    berechneFreienBetrag: berechneFreienBetrag,
+    berechneVerteilung: berechneVerteilung
+  };
+})(typeof globalThis !== "undefined" ? globalThis : this);
+/* #endregion verteilung */
+</script>
+
+<script>
+(function () {
+  "use strict";
+  var ZV = globalThis.Zuflussverteiler;
+
+  // Namen und Zielgewichte sind fest hinterlegt, Beträge nicht: Die Seite
+  // startet leer und zeigt nur, was selbst eingetragen und gespeichert wurde.
+  var STANDARD_POSITIONEN = [
+    { id: "world",   name: "Core MSCI World",        gewicht: 50,    wert: 0, block: null,          sparrate: 400 },
+    { id: "em",      name: "MSCI Emerging Markets",  gewicht: 18.75, wert: 0, block: null,          sparrate: 150 },
+    { id: "wsc",     name: "MSCI World Small Cap",   gewicht: 9.375, wert: 0, block: null,          sparrate: 75 },
+    { id: "emsc",    name: "MSCI EM Small Cap",      gewicht: 6.25,  wert: 0, block: null,          sparrate: 50 },
+    { id: "europe",  name: "Core Stoxx Europe 600",  gewicht: 6.25,  wert: 0, block: null,          sparrate: 50 },
+    { id: "africa",  name: "MSCI Africa Top 50",     gewicht: 3.125, wert: 0, block: null,          sparrate: 25 },
+    { id: "gold",    name: "Gold",                   gewicht: 3.125, wert: 0, block: "edelmetalle", sparrate: 25 },
+    { id: "silber",  name: "Silber",                 gewicht: 3.125, wert: 0, block: "edelmetalle", sparrate: 25 }
+  ];
+  var STANDARD_ALTLASTEN = [
+    { id: "wit",   name: "World Information Technology", wert: 0 },
+    { id: "aibd",  name: "AI & Big Data",                wert: 0 },
+    { id: "scgt",  name: "Small Cap Green Transition",   wert: 0 }
+  ];
+  var STANDARD_BEOBACHTET = [
+    { id: "btc",    name: "Bitcoin",                 wert: 0 },
+    { id: "apollo", name: "Apollo (Private Markets)", wert: 0 },
+    { id: "eqt",    name: "EQT (Private Markets)",    wert: 0 }
+  ];
+  var STANDARD_PUFFER = 10000;
+  var SPEICHER = "zuflussverteiler.v1";
+  var INVEST_TAG = 15;
+  var FASSUNG = "2026-08-05 f";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+
+  var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  var zahl2 = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var proz = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var prozZiel = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+
+  function fmtEuro(n) { return eur.format(n || 0); }
+  function fmtEuroKurz(n) { return eurKurz.format(n || 0); }
+
+  // "12.345,60" oder "12345.6" oder "1234,5" -> Zahl
+  function parseZahl(text) {
+    if (text == null) return 0;
+    var s = String(text).replace(/[€\s _]/g, "").trim();
+    if (!s) return 0;
+    if (s.indexOf(",") >= 0) s = s.replace(/\./g, "").replace(",", ".");
+    else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
+    var n = parseFloat(s);
+    return isFinite(n) ? n : 0;
+  }
+
+  // ---- Zustand laden / speichern ----------------------------------------
+  function standardZustand() {
+    return {
+      guthaben: null,
+      puffer: STANDARD_PUFFER,
+      werte: STANDARD_POSITIONEN.reduce(function (o, p) { o[p.id] = p.wert; return o; }, {}),
+      gewichte: STANDARD_POSITIONEN.reduce(function (o, p) { o[p.id] = p.gewicht; return o; }, {}),
+      altlasten: STANDARD_ALTLASTEN.reduce(function (o, p) { o[p.id] = p.wert; return o; }, {}),
+      beobachtet: STANDARD_BEOBACHTET.reduce(function (o, p) { o[p.id] = p.wert; return o; }, {}),
+      verlauf: [],
+      gespeichertAm: null
+    };
+  }
+
+  // Läuft das Speichern in diesem Browser überhaupt? Und lag etwas vor?
+  var speicherGeht = true;
+  try {
+    localStorage.setItem(SPEICHER + ".probe", "1");
+    localStorage.removeItem(SPEICHER + ".probe");
+  } catch (e) {
+    speicherGeht = false;
+  }
+  var hatteDaten = false;
+
+  var zustand = standardZustand();
+
+  // Übernimmt gespeicherte Werte — aus dem Browserspeicher wie aus einer
+  // Sicherungsdatei. Alles Unbekannte oder Unplausible wird verworfen.
+  function uebernehmen(g) {
+    if (!g || typeof g !== "object") return false;
+    if (g.daten && typeof g.daten === "object") g = g.daten;   // Sicherungsdatei
+    if (typeof g.guthaben === "number" && isFinite(g.guthaben)) zustand.guthaben = g.guthaben;
+    else if (g.guthaben === null) zustand.guthaben = null;
+    if (typeof g.puffer === "number" && isFinite(g.puffer)) zustand.puffer = g.puffer;
+    if (typeof g.gespeichertAm === "string") zustand.gespeichertAm = g.gespeichertAm;
+    ["werte", "gewichte", "altlasten", "beobachtet"].forEach(function (feld) {
+      if (g[feld] && typeof g[feld] === "object") {
+        Object.keys(zustand[feld]).forEach(function (id) {
+          if (typeof g[feld][id] === "number" && isFinite(g[feld][id])) zustand[feld][id] = g[feld][id];
+        });
+      }
+    });
+    if (Array.isArray(g.verlauf)) {
+      zustand.verlauf = g.verlauf
+        .filter(function (e) {
+          return e && /^\d{4}-\d{2}-\d{2}$/.test(e.datum) && typeof e.gesamt === "number" && isFinite(e.gesamt);
+        })
+        .sort(function (a, b) { return a.datum < b.datum ? -1 : 1; });
+    }
+    return true;
+  }
+
+  // Gespeichert wird nur auf Knopfdruck. Damit ist immer klar, welcher Stand
+  // festgehalten ist — und der Verlauf bekommt genau dann seinen Tageseintrag.
+  // Geschrieben wird in zwei Ablagen des Browsers, damit ein Stand nicht
+  // verloren ist, wenn eine davon geräumt wird.
+  var DB_NAME = "zuflussverteiler", DB_FACH = "stand", DB_SCHLUESSEL = "aktuell";
+
+  function mitDatenbank(fertig) {
+    try {
+      if (!window.indexedDB) return;
+      var anfrage = indexedDB.open(DB_NAME, 1);
+      anfrage.onupgradeneeded = function () {
+        anfrage.result.createObjectStore(DB_FACH);
+      };
+      anfrage.onsuccess = function () {
+        try { fertig(anfrage.result); } catch (e) { /* Ablage nicht nutzbar */ }
+      };
+      anfrage.onerror = function () { /* Ablage nicht nutzbar */ };
+    } catch (e) { /* Ablage nicht nutzbar */ }
+  }
+  function datenbankSchreiben(text) {
+    mitDatenbank(function (db) {
+      db.transaction(DB_FACH, "readwrite").objectStore(DB_FACH).put(text, DB_SCHLUESSEL);
+    });
+  }
+  function datenbankLesen(fertig) {
+    mitDatenbank(function (db) {
+      var r = db.transaction(DB_FACH, "readonly").objectStore(DB_FACH).get(DB_SCHLUESSEL);
+      r.onsuccess = function () { fertig(r.result || null); };
+      r.onerror = function () { fertig(null); };
+    });
+  }
+
+  try {
+    var roh = localStorage.getItem(SPEICHER);
+    if (roh) hatteDaten = uebernehmen(JSON.parse(roh));
+  } catch (e) { /* kaputter Speicher -> Startwerte */ }
+
+  var ungespeichert = false;
+
+  function markiereUngespeichert() {
+    ungespeichert = true;
+    zeigeSpeicherStand();
+  }
+
+  function speichern() {
+    var text;
+    try {
+      zustand.gespeichertAm = new Date().toISOString();
+      text = JSON.stringify(zustand);
+      localStorage.setItem(SPEICHER, text);
+      speicherGeht = true;
+    } catch (e) {
+      speicherGeht = false;
+    }
+    if (text) datenbankSchreiben(text);
+    if (speicherGeht) {
+      hatteDaten = true;
+      ungespeichert = false;
+    }
+    zeigeSpeicherHinweis();
+    zeigeSpeicherStand();
+  }
+
+  function el(id) { return document.getElementById(id); }
+  function neu(tag, klasse, text) {
+    var n = document.createElement(tag);
+    if (klasse) n.className = klasse;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  // Eingabefeld, das beim Verlassen deutsch formatiert wird
+  function geldFeld(wert, aufAenderung, klasse) {
+    var i = neu("input", klasse || "");
+    i.type = "text";
+    i.inputMode = "decimal";
+    i.autocomplete = "off";
+    i.value = wert == null ? "" : zahl2.format(wert);
+    i.addEventListener("input", function () { aufAenderung(parseZahl(i.value)); });
+    i.addEventListener("focus", function () { i.select(); });
+    i.addEventListener("blur", function () {
+      if (i.value.trim() === "") { aufAenderung(null); return; }
+      i.value = zahl2.format(parseZahl(i.value));
+    });
+    return i;
+  }
+
+  // ---- Oberfläche aufbauen ---------------------------------------------
+  var refs = {};
+
+  // Eine Änderung an einem Vermögenswert wird im Verlauf festgehalten,
+  // eine reine Einstellung (Puffer, Zielgewicht) nicht.
+  function wertGeaendert() { aktualisieren(); markiereUngespeichert(); }
+  function einstellungGeaendert() { aktualisieren(); markiereUngespeichert(); }
+
+  var guthabenFeld = geldFeld(zustand.guthaben, function (v) { zustand.guthaben = v; wertGeaendert(); });
+  el("guthaben").replaceWith(guthabenFeld); guthabenFeld.id = "guthaben";
+  var pufferFeld = geldFeld(zustand.puffer, function (v) { zustand.puffer = v == null ? 0 : v; einstellungGeaendert(); });
+  el("puffer").replaceWith(pufferFeld); pufferFeld.id = "puffer";
+
+  function positionsZeile(p) {
+    var wrap = neu("div", "pos");
+    var kopf = neu("div", "pos-kopf");
+    kopf.append(neu("span", "pos-name", p.name));
+    var kauf = neu("span", "pos-kauf keiner", "—");
+    kopf.append(kauf);
+    wrap.append(kopf);
+
+    var zahlen = neu("div", "pos-zahlen");
+    var jetzt = neu("span", "", "");
+    var ziel = neu("span", "", "");
+    var abw = neu("span", "abw", "");
+    zahlen.append(jetzt, ziel, abw);
+    wrap.append(zahlen);
+
+    var balken = neu("div", "balken");
+    var fuell = document.createElement("i");
+    balken.append(fuell);
+    wrap.append(balken);
+
+    var feld = neu("div", "feld");
+    var lab = neu("label", "", "Aktueller Wert");
+    lab.setAttribute("for", "wert-" + p.id);
+    var eingabe = neu("span", "eingabe");
+    var input = geldFeld(zustand.werte[p.id], function (v) {
+      zustand.werte[p.id] = v == null ? 0 : v; wertGeaendert();
+    });
+    input.id = "wert-" + p.id;
+    eingabe.append(input, neu("span", "einheit", "€"));
+    feld.append(lab, eingabe);
+    feld.style.borderTop = "none";
+    feld.style.paddingBottom = "0";
+    wrap.append(feld);
+
+    refs[p.id] = { kauf: kauf, jetzt: jetzt, ziel: ziel, abw: abw, fuell: fuell, input: input, label: lab };
+    return wrap;
+  }
+
+  var liste = el("positionen");
+  var blockBox = null;
+  STANDARD_POSITIONEN.forEach(function (p) {
+    if (p.block) {
+      if (!blockBox) {
+        blockBox = neu("div", "block");
+        var kopf = neu("div", "block-kopf");
+        var links = neu("b", "", "Edelmetalle · Block");
+        var rechts = neu("span", "", "");
+        kopf.append(links, rechts);
+        blockBox.append(kopf);
+        refs.blockKopf = rechts;
+        liste.append(blockBox);
+      }
+      blockBox.append(positionsZeile(p));
+    } else {
+      liste.append(positionsZeile(p));
+    }
+  });
+
+  // Nebengruppen (Altlasten, Beobachten): nur Name und Wert, keine Rechnung
+  function baueNebengruppe(containerId, definitionen, feld) {
+    var liste = el(containerId);
+    definitionen.forEach(function (a) {
+      var zeile = neu("div", "feld");
+      var lab = neu("label", "", a.name);
+      lab.setAttribute("for", feld + "-" + a.id);
+      var eingabe = neu("span", "eingabe");
+      var input = geldFeld(zustand[feld][a.id], function (v) {
+        zustand[feld][a.id] = v == null ? 0 : v; wertGeaendert();
+      });
+      input.id = feld + "-" + a.id;
+      eingabe.append(input, neu("span", "einheit", "€"));
+      zeile.append(lab, eingabe);
+      liste.append(zeile);
+      refs[feld + "-" + a.id] = { input: input, label: lab };
+    });
+  }
+  baueNebengruppe("altlasten", STANDARD_ALTLASTEN, "altlasten");
+  baueNebengruppe("beobachtet", STANDARD_BEOBACHTET, "beobachtet");
+
+  function summeGruppe(definitionen, feld) {
+    return definitionen.reduce(function (s, a) { return s + (zustand[feld][a.id] || 0); }, 0);
+  }
+
+  // Aufschlüsselung des Gesamtvermögens
+  var VERMOEGEN_GRUPPEN = [
+    { id: "bespart", name: "Besparte Positionen", farbe: "f-bespart" },
+    { id: "alt",     name: "Altlasten",           farbe: "f-alt" },
+    { id: "beob",    name: "Beobachten",          farbe: "f-beob" },
+    { id: "bank",    name: "Bankguthaben",        farbe: "f-bank" }
+  ];
+  var streifen = el("vStreifen");
+  var aufschluesselung = el("vAufschluesselung");
+  VERMOEGEN_GRUPPEN.forEach(function (g) {
+    var seg = document.createElement("i");
+    seg.className = g.farbe;
+    streifen.append(seg);
+
+    var zeile = neu("div", "v-zeile");
+    var punkt = neu("span", "v-punkt " + g.farbe);
+    var euro = neu("span", "v-euro", "—");
+    var pro = neu("span", "v-proz", "");
+    zeile.append(punkt, neu("span", "v-name", g.name), euro, pro);
+    aufschluesselung.append(zeile);
+
+    refs["v-" + g.id] = { segment: seg, euro: euro, proz: pro };
+  });
+
+  // ---- Anlageklassen ----------------------------------------------------
+  // Andere Einteilung als die vier Gruppen darunter: hier zählt, was eine
+  // Position ihrer Art nach ist, nicht wie ich sie bespare.
+  var EDELMETALL_IDS = ["gold", "silber"];
+  var PRIVATE_MARKETS_IDS = ["apollo", "eqt"];
+  var KRYPTO_IDS = ["btc"];
+
+  function summeVon(feld, ids) {
+    return ids.reduce(function (s, id) { return s + (zustand[feld][id] || 0); }, 0);
+  }
+
+  var ANLAGEKLASSEN = [
+    { id: "bank", name: "Bankguthaben", wert: function () { return zustand.guthaben || 0; } },
+    { id: "etf", name: "ETFs", wert: function () {
+        var s = 0;
+        STANDARD_POSITIONEN.forEach(function (p) {
+          if (EDELMETALL_IDS.indexOf(p.id) < 0) s += zustand.werte[p.id] || 0;
+        });
+        STANDARD_ALTLASTEN.forEach(function (a) { s += zustand.altlasten[a.id] || 0; });
+        return s;
+      } },
+    { id: "pm", name: "Private Markets", wert: function () { return summeVon("beobachtet", PRIVATE_MARKETS_IDS); } },
+    { id: "edel", name: "Edelmetalle", wert: function () { return summeVon("werte", EDELMETALL_IDS); } },
+    { id: "krypto", name: "Krypto", wert: function () { return summeVon("beobachtet", KRYPTO_IDS); } }
+  ];
+
+  var klassenListe = el("klassenListe");
+  ANLAGEKLASSEN.forEach(function (k) {
+    var zeile = neu("div", "k-zeile");
+    var euro = neu("span", "k-euro", "—");
+    var pro = neu("span", "k-proz", "");
+    zeile.append(neu("span", "k-punkt p-" + k.id), neu("span", "k-name", k.name), euro, pro);
+    zeile.addEventListener("pointerenter", function () { hervorheben(k.id); });
+    zeile.addEventListener("pointerleave", function () { hervorheben(null); });
+    klassenListe.append(zeile);
+    refs["k-" + k.id] = { zeile: zeile, euro: euro, proz: pro };
+  });
+
+  var tortenStuecke = [];
+  function hervorheben(id) {
+    tortenStuecke.forEach(function (st) {
+      st.pfad.classList.toggle("blass", id != null && st.id !== id);
+    });
+    ANLAGEKLASSEN.forEach(function (k) {
+      refs["k-" + k.id].zeile.classList.toggle("aktiv", k.id === id);
+    });
+  }
+
+  // Ringabschnitt von Winkel a0 bis a1 (Bogenmaß, 0 = oben, im Uhrzeigersinn)
+  function ringPfad(cx, cy, rAussen, rInnen, a0, a1) {
+    function punkt(r, a) { return [cx + r * Math.sin(a), cy - r * Math.cos(a)]; }
+    var gross = (a1 - a0) > Math.PI ? 1 : 0;
+    var a = punkt(rAussen, a0), b = punkt(rAussen, a1);
+    var c = punkt(rInnen, a1), d = punkt(rInnen, a0);
+    return "M" + a + " A" + rAussen + "," + rAussen + " 0 " + gross + " 1 " + b +
+           " L" + c + " A" + rInnen + "," + rInnen + " 0 " + gross + " 0 " + d + " Z";
+  }
+
+  function zeichneTorte(anteile, gesamt) {
+    var svg = el("torte");
+    svg.textContent = "";
+    tortenStuecke = [];
+    var gr = 200, mitte = gr / 2, rA = 88, rI = 55;
+    svg.setAttribute("viewBox", "0 0 " + gr + " " + gr);
+
+    var sichtbar = anteile.filter(function (a) { return a.wert > 0; });
+    if (!sichtbar.length) {
+      svg.append(svgKind("circle", { cx: mitte, cy: mitte, r: (rA + rI) / 2, fill: "none",
+        stroke: "var(--line)", "stroke-width": rA - rI }));
+      var leer = svgKind("text", { class: "t-mitte", x: mitte, y: mitte + 4 });
+      leer.textContent = "noch nichts erfasst";
+      svg.append(leer);
+      return;
+    }
+
+    var luecke = sichtbar.length > 1 ? 2 / rA : 0;   // 2 px Abstand zwischen den Stücken
+    var winkel = 0;
+    sichtbar.forEach(function (a) {
+      var spanne = (a.wert / gesamt) * Math.PI * 2;
+      var von = winkel + luecke / 2, bis = winkel + spanne - luecke / 2;
+      if (bis > von) {
+        var d = spanne >= Math.PI * 2 - 1e-9
+          ? ringPfad(mitte, mitte, rA, rI, 0, Math.PI) + ringPfad(mitte, mitte, rA, rI, Math.PI, Math.PI * 2)
+          : ringPfad(mitte, mitte, rA, rI, von, bis);
+        var pfad = svgKind("path", { class: "t-stueck f-k-" + a.id, d: d });
+        pfad.addEventListener("pointerenter", function () { hervorheben(a.id); });
+        pfad.addEventListener("pointerleave", function () { hervorheben(null); });
+        svg.append(pfad);
+        tortenStuecke.push({ id: a.id, pfad: pfad });
+      }
+      winkel += spanne;
+    });
+
+    var betrag = svgKind("text", { class: "t-mitte wert", x: mitte, y: mitte + 2 });
+    betrag.textContent = fmtEuroKurz(gesamt);
+    var wort = svgKind("text", { class: "t-mitte", x: mitte, y: mitte + 20 });
+    wort.textContent = "gesamt";
+    svg.append(betrag, wort);
+  }
+
+  function zeigeAnlageklassen(gesamt) {
+    var anteile = ANLAGEKLASSEN.map(function (k) {
+      return { id: k.id, name: k.name, wert: k.wert() };
+    });
+    anteile.forEach(function (a) {
+      var r = refs["k-" + a.id];
+      var anteil = gesamt > 0 ? (a.wert / gesamt) * 100 : 0;
+      r.euro.textContent = fmtEuro(a.wert);
+      r.proz.textContent = proz.format(anteil) + " %";
+    });
+    zeichneTorte(anteile, gesamt);
+    el("torte").setAttribute("aria-label", "Aufteilung des Gesamtvermögens von " + fmtEuro(gesamt) + ": " +
+      anteile.map(function (a) {
+        return a.name + " " + proz.format(gesamt > 0 ? (a.wert / gesamt) * 100 : 0) + " Prozent";
+      }).join(", ") + ".");
+  }
+
+  var gewListe = el("gewichte");
+  STANDARD_POSITIONEN.forEach(function (p) {
+    var feld = neu("div", "feld");
+    var lab = neu("label", "", p.name);
+    lab.setAttribute("for", "gew-" + p.id);
+    var eingabe = neu("span", "eingabe");
+    var input = geldFeld(zustand.gewichte[p.id], function (v) {
+      zustand.gewichte[p.id] = v == null ? 0 : v; einstellungGeaendert();
+    }, "schmal");
+    input.id = "gew-" + p.id;
+    input.value = prozZiel.format(zustand.gewichte[p.id]);
+    input.addEventListener("blur", function () {
+      input.value = prozZiel.format(parseZahl(input.value));
+    });
+    eingabe.append(input, neu("span", "einheit", "%"));
+    feld.append(lab, eingabe);
+    gewListe.append(feld);
+    refs["gew-" + p.id] = { input: input };
+  });
+
+  // ---- Datum-Hinweis ----------------------------------------------------
+  var heute = new Date();
+  el("heute").textContent = heute.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  if (heute.getDate() !== INVEST_TAG) {
+    el("tagHinweis").hidden = false;
+    el("tagHinweisText").textContent =
+      "Heute ist nicht der 15. Deine Zusatzkäufe machst du am 15. — bis dahin ist das hier nur eine Vorschau.";
+  }
+
+  // ---- Ampelrahmen um den Kasten mit dem Bankguthaben -------------------
+  // Die Stufen hängen am Puffer, nicht an festen Beträgen: Änderst du den
+  // Puffer, verschieben sie sich mit. Bei 10.000 € Puffer ergibt das genau
+  // die Grenzen 11.000 / 10.000 / 8.500 / 7.000 €.
+  var AMPEL = [
+    { abPuffer:  1000, farbe: "#79b0f5" },   // ab Puffer + 1.000 €: blau
+    { abPuffer:     0, farbe: "#4fd39c" },   // Puffer erreicht: hellgrün
+    { abPuffer: -1500, farbe: "#e6cf5a" },   // bis 1.500 € darunter: gelb
+    { abPuffer: -3000, farbe: "#e9a13b" },   // bis 3.000 € darunter: orange
+    { abPuffer: -Infinity, farbe: "#ff9086" } // tiefer: rot
+  ];
+
+  function zeigeAmpel(guthaben, puffer) {
+    var kasten = el("pufferKasten");
+    var chip = el("pufferChip");
+    if (guthaben == null) {
+      kasten.style.removeProperty("--rahmen");
+      chip.hidden = true;
+      return;
+    }
+    var abstand = guthaben - puffer;
+    var stufe = AMPEL.filter(function (a) { return abstand >= a.abPuffer; })[0] || AMPEL[AMPEL.length - 1];
+    kasten.style.setProperty("--rahmen", stufe.farbe);
+    chip.hidden = false;
+    var betrag = Math.abs(abstand);
+    chip.textContent = "Puffer " + (abstand >= 0 ? "+" : "−") +
+      (betrag < 100 ? fmtEuro(betrag) : fmtEuroKurz(betrag));   // sonst stünde da "−0 €"
+  }
+
+  // ---- Rechnen und anzeigen --------------------------------------------
+  function aktualisieren() {
+    var positionen = STANDARD_POSITIONEN.map(function (p) {
+      return { id: p.id, name: p.name, gewicht: zustand.gewichte[p.id] || 0, wert: zustand.werte[p.id] || 0, block: p.block };
+    });
+
+    var hatGuthaben = zustand.guthaben != null;
+    zeigeAmpel(zustand.guthaben, zustand.puffer || 0);
+    var frei = ZV.berechneFreienBetrag(zustand.guthaben || 0, zustand.puffer || 0);
+    var e = ZV.berechneVerteilung(frei, positionen);
+
+    // Freier Betrag
+    var freiWert = el("freiWert");
+    var freiBesch = el("freiBeschriftung");
+    if (!hatGuthaben) {
+      freiWert.className = "wert null";
+      freiWert.textContent = "Bankguthaben eintragen";
+      freiBesch.textContent = "Zu verteilen";
+    } else if (frei <= 0) {
+      freiWert.className = "wert null";
+      freiWert.textContent = "Diesen Monat kein Zusatzinvestment.";
+      freiBesch.textContent = "Bankguthaben liegt unter dem Puffer";
+    } else {
+      freiWert.className = "wert";
+      freiWert.textContent = fmtEuroKurz(frei);
+      freiBesch.textContent = "Zu verteilen (auf volle 100 € aufgerundet)";
+    }
+
+    el("kBasis").textContent = fmtEuroKurz(e.basis);
+    el("kVerplant").textContent = fmtEuroKurz(e.verplant);
+    el("kRest").textContent = fmtEuroKurz(e.rest);
+    el("kRest").parentElement.classList.toggle("leer", e.rest <= 0);
+
+    // Restbegründung / ausgeschlossene Positionen
+    var notiz = el("restNotiz");
+    var teile = [];
+    if (frei > 0 && e.rest > 0) {
+      if (e.verplant === 0) teile.push("Nichts verplant: " + fmtEuroKurz(frei) + " reicht nicht für einen Kauf von mindestens " + fmtEuroKurz(200) + ".");
+      else teile.push(fmtEuroKurz(e.rest) + " bleiben liegen — sie lassen sich nicht in 50-€-Schritten über dem Mindestbetrag unterbringen.");
+    }
+    if (e.verplant > 0 && e.ausgeschlossen.length) {
+      var namen = e.ausgeschlossen
+        .slice()
+        .sort(function (a, b) { return b.einheit.luecke - a.einheit.luecke; })
+        .map(function (a) {
+          var n = a.einheit.block === "edelmetalle" ? "Edelmetalle" : a.einheit.mitglieder[0].name;
+          return n + (a.grund === "orders" ? " (kein Budget mehr)" : " (Anteil unter " + fmtEuroKurz(a.einheit.min) + ")");
+        });
+      teile.push("Diesmal übersprungen: " + namen.join(", ") + ".");
+    }
+    notiz.textContent = teile.join(" ");
+
+    // Abweichungs-Maßstab
+    var maxAbw = 1;
+    positionen.forEach(function (p) {
+      var jetztP = e.basis > 0 ? (p.wert / e.basis) * 100 : 0;
+      maxAbw = Math.max(maxAbw, Math.abs(jetztP - p.gewicht));
+    });
+
+    positionen.forEach(function (p) {
+      var r = refs[p.id];
+      var jetztP = e.basis > 0 ? (p.wert / e.basis) * 100 : 0;
+      var abw = jetztP - p.gewicht;
+      var kaufBetrag = e.kauf.get(p.id) || 0;
+
+      r.jetzt.textContent = "jetzt " + proz.format(jetztP) + " %";
+      r.ziel.textContent = "Ziel " + prozZiel.format(p.gewicht) + " %";
+      r.abw.textContent = (abw >= 0 ? "+" : "−") + proz.format(Math.abs(abw)) + " Pp.";
+      r.abw.className = "abw " + (abw < 0 ? "unter" : "ueber");
+
+      var breite = Math.min(49, Math.abs(abw) / maxAbw * 49);
+      if (abw < 0) { r.fuell.className = "unter"; r.fuell.style.left = (50 - breite) + "%"; }
+      else { r.fuell.className = "ueber"; r.fuell.style.left = "50%"; }
+      r.fuell.style.width = breite + "%";
+
+      r.kauf.textContent = kaufBetrag > 0 ? "+ " + fmtEuroKurz(kaufBetrag) : "—";
+      r.kauf.className = "pos-kauf" + (kaufBetrag > 0 ? "" : " keiner");
+      if (document.activeElement !== r.input) {
+        r.input.value = zahl2.format(zustand.werte[p.id] || 0);
+      }
+    });
+
+    // Blockkopf
+    var block = e.einheiten.filter(function (u) { return u.block === "edelmetalle"; })[0];
+    if (block && refs.blockKopf) {
+      var anteil = e.basis > 0 ? (block.wert / e.basis) * 100 : 0;
+      refs.blockKopf.textContent =
+        "Ziel " + prozZiel.format(block.gewicht) + " % · jetzt " + proz.format(anteil) + " % · " +
+        (block.kauf > 0 ? "Kauf " + fmtEuroKurz(block.kauf) + " (je Hälfte " + fmtEuroKurz(block.kauf / 2) + ")" : "kein Kauf");
+    }
+
+    // Nebengruppen
+    function zeigeGruppe(definitionen, feld, summeId) {
+      definitionen.forEach(function (a) {
+        var r = refs[feld + "-" + a.id];
+        if (document.activeElement !== r.input) r.input.value = zahl2.format(zustand[feld][a.id] || 0);
+      });
+      var summe = summeGruppe(definitionen, feld);
+      el(summeId).textContent = fmtEuro(summe);
+      return summe;
+    }
+    var altSumme = zeigeGruppe(STANDARD_ALTLASTEN, "altlasten", "altSumme");
+    var beobSumme = zeigeGruppe(STANDARD_BEOBACHTET, "beobachtet", "beobSumme");
+
+    // Gesamtvermögen: besparte Positionen + Altlasten + Beobachten + Bankguthaben
+    var bank = zustand.guthaben || 0;
+    var anteile = { bespart: e.basis, alt: altSumme, beob: beobSumme, bank: bank };
+    var gesamt = e.basis + altSumme + beobSumme + bank;
+    aktuellesGesamt = gesamt;
+    aktuelleGruppen = anteile;
+    el("vGesamt").textContent = fmtEuro(gesamt);
+    VERMOEGEN_GRUPPEN.forEach(function (g) {
+      var wert = anteile[g.id];
+      var anteil = gesamt > 0 ? (wert / gesamt) * 100 : 0;
+      var r = refs["v-" + g.id];
+      r.euro.textContent = fmtEuro(wert);
+      r.proz.textContent = proz.format(anteil) + " %";
+      r.segment.style.width = anteil + "%";
+    });
+
+    zeigeAnlageklassen(gesamt);
+
+    // Zielgewichte-Summe
+    var gewSumme = positionen.reduce(function (s, p) { return s + p.gewicht; }, 0);
+    var gs = el("gewichteSumme");
+    gs.textContent = "Summe der Zielgewichte: " + prozZiel.format(gewSumme) + " %" +
+      (Math.abs(gewSumme - 100) > 0.001 ? " — sollte 100 % ergeben." : "");
+    gs.className = "notiz" + (Math.abs(gewSumme - 100) > 0.001 ? " warn" : "");
+  }
+
+  // ---- Verlauf des Gesamtvermögens ------------------------------------
+  // Festgehalten wird höchstens ein Stand pro Kalendertag: ein weiterer
+  // Eintrag am selben Tag überschreibt den vorhandenen.
+  var aktuellesGesamt = 0;
+  var aktuelleGruppen = {};
+  var fenster = el("verlaufFenster");
+
+  function heuteISO() {
+    var d = new Date();
+    return d.getFullYear() + "-" +
+      String(d.getMonth() + 1).padStart(2, "0") + "-" +
+      String(d.getDate()).padStart(2, "0");
+  }
+  function alsDatum(iso) { return new Date(iso + "T00:00:00"); }
+  function fmtDatumLang(iso) {
+    return alsDatum(iso).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+  function fmtDatumKurz(iso) {
+    return alsDatum(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+  }
+  function fmtDatumTabelle(iso) {
+    var d = alsDatum(iso);
+    return d.toLocaleDateString("de-DE", { weekday: "short" }).replace(".", "") + " " +
+      d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  }
+  function mitVorzeichen(n) { return (n >= 0 ? "+" : "−") + fmtEuro(Math.abs(n)); }
+
+  function verlaufErfassen() {
+    var heute = heuteISO();
+    var eintrag = { datum: heute, gesamt: aktuellesGesamt, gruppen: aktuelleGruppen };
+    var vorhanden = -1;
+    zustand.verlauf.forEach(function (e, i) { if (e.datum === heute) vorhanden = i; });
+    if (vorhanden >= 0) zustand.verlauf[vorhanden] = eintrag;
+    else zustand.verlauf.push(eintrag);
+    zustand.verlauf.sort(function (a, b) { return a.datum < b.datum ? -1 : 1; });
+    zeigeDelta();
+    if (fenster.open) zeigeVerlauf();
+  }
+
+  function zeigeDelta() {
+    var ziel = el("vDelta");
+    ziel.textContent = "";
+    var v = zustand.verlauf;
+    if (v.length < 2) {
+      ziel.textContent = v.length === 1 ? "Erster Eintrag: " + fmtDatumLang(v[0].datum) : "";
+      return;
+    }
+    var jetzt = v[v.length - 1], vorher = v[v.length - 2];
+    var delta = jetzt.gesamt - vorher.gesamt;
+    ziel.append(
+      neu("span", delta >= 0 ? "hoch" : "runter", mitVorzeichen(delta)),
+      document.createTextNode(" seit " + fmtDatumKurz(vorher.datum))
+    );
+  }
+
+  // Runde Beträge für die Hilfslinien: die kleinste "glatte" Schrittweite,
+  // die etwa vier bis sechs Linien ergibt.
+  function netzWerte(min, max) {
+    var ziel = (max - min) / 6;
+    var groesse = Math.pow(10, Math.floor(Math.log10(ziel)));
+    var schritt = 10 * groesse;
+    [5, 2.5, 2, 1].forEach(function (f) {
+      if (f * groesse >= ziel) schritt = f * groesse;
+    });
+    var werte = [];
+    for (var v = Math.ceil(min / schritt) * schritt; v <= max + schritt * 1e-6; v += schritt) werte.push(v);
+    return werte.length ? werte : [min, max];
+  }
+
+  function svgKind(name, attrs) {
+    var n = document.createElementNS("http://www.w3.org/2000/svg", name);
+    Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    return n;
+  }
+
+  var zeichnung = null; // Punkte des letzten Diagramms, für die Berührung
+
+  function zeichneDiagramm() {
+    var bild = el("verlaufBild");
+    var flaeche = el("verlaufFlaeche");
+    var eintraege = zustand.verlauf;
+    bild.textContent = "";
+    zeichnung = null;
+    if (!eintraege.length) { bild.style.display = "none"; return; }
+    bild.style.display = "block";
+
+    var breite = Math.max(280, Math.round(flaeche.clientWidth || 320));
+    var hoehe = 210;
+    var padL = 58, padR = 16, padT = 22, padB = 30;
+    var innenB = breite - padL - padR, innenH = hoehe - padT - padB;
+    bild.setAttribute("viewBox", "0 0 " + breite + " " + hoehe);
+    bild.setAttribute("width", breite);
+    bild.setAttribute("height", hoehe);
+
+    var werte = eintraege.map(function (e) { return e.gesamt; });
+    var yMin = Math.min.apply(null, werte), yMax = Math.max.apply(null, werte);
+    if (yMax - yMin < 1) {
+      var luft = Math.max(100, Math.abs(yMax) * 0.02);
+      yMin -= luft; yMax += luft;
+    } else {
+      var rand = (yMax - yMin) * 0.15;
+      yMin -= rand; yMax += rand;
+    }
+    var zeiten = eintraege.map(function (e) { return alsDatum(e.datum).getTime(); });
+    var tMin = Math.min.apply(null, zeiten), tMax = Math.max.apply(null, zeiten);
+
+    function X(t) { return tMax === tMin ? padL + innenB / 2 : padL + (t - tMin) / (tMax - tMin) * innenB; }
+    function Y(v) { return padT + (1 - (v - yMin) / (yMax - yMin)) * innenH; }
+
+    // Hilfslinien auf runden Beträgen statt auf krummen Randwerten
+    netzWerte(yMin, yMax).forEach(function (v) {
+      var y = Y(v);
+      bild.append(svgKind("line", { class: "vl-netz", x1: padL, y1: y, x2: padL + innenB, y2: y }));
+      var t = svgKind("text", { class: "vl-schrift", x: padL - 8, y: y + 4, "text-anchor": "end" });
+      t.textContent = fmtEuroKurz(v);
+      bild.append(t);
+    });
+
+    var punkte = eintraege.map(function (e, i) { return { x: X(zeiten[i]), y: Y(e.gesamt), e: e }; });
+    var basis = padT + innenH;
+
+    if (punkte.length > 1) {
+      var flaechePfad = "M" + punkte[0].x + "," + basis +
+        punkte.map(function (p) { return "L" + p.x + "," + p.y; }).join("") +
+        "L" + punkte[punkte.length - 1].x + "," + basis + "Z";
+      bild.append(svgKind("path", { class: "vl-flaeche", d: flaechePfad }));
+      bild.append(svgKind("polyline", {
+        class: "vl-linie",
+        points: punkte.map(function (p) { return p.x + "," + p.y; }).join(" ")
+      }));
+    }
+    if (punkte.length <= 30) {
+      punkte.slice(0, -1).forEach(function (p) {
+        bild.append(svgKind("circle", { class: "vl-punkt", cx: p.x, cy: p.y, r: 3 }));
+      });
+    }
+
+    // Nur der letzte Punkt wird hervorgehoben und beschriftet
+    var letzter = punkte[punkte.length - 1];
+    bild.append(svgKind("circle", { class: "vl-ende", cx: letzter.x, cy: letzter.y, r: 5 }));
+    var beschriftung = svgKind("text", {
+      class: "vl-schrift stark",
+      x: Math.min(letzter.x + 8, padL + innenB),
+      y: Math.max(padT - 6, letzter.y - 12),
+      "text-anchor": letzter.x > padL + innenB * 0.6 ? "end" : "start"
+    });
+    beschriftung.textContent = fmtEuroKurz(letzter.e.gesamt);
+    bild.append(beschriftung);
+
+    // Datumsbeschriftung: erster und letzter Eintrag
+    var unten = hoehe - 8;
+    if (punkte.length === 1) {
+      var nur = svgKind("text", { class: "vl-schrift", x: letzter.x, y: unten, "text-anchor": "middle" });
+      nur.textContent = fmtDatumKurz(letzter.e.datum);
+      bild.append(nur);
+    } else {
+      var links = svgKind("text", { class: "vl-schrift", x: padL, y: unten, "text-anchor": "start" });
+      links.textContent = fmtDatumKurz(eintraege[0].datum);
+      var rechts = svgKind("text", { class: "vl-schrift", x: padL + innenB, y: unten, "text-anchor": "end" });
+      rechts.textContent = fmtDatumKurz(eintraege[eintraege.length - 1].datum);
+      bild.append(links, rechts);
+    }
+
+    var kreuz = svgKind("line", { class: "vl-kreuz", x1: 0, y1: padT, x2: 0, y2: basis, opacity: 0 });
+    var ring = svgKind("circle", { class: "vl-ende", cx: 0, cy: 0, r: 5, opacity: 0 });
+    bild.append(kreuz, ring);
+    bild.append(svgKind("rect", { x: 0, y: 0, width: breite, height: hoehe, fill: "transparent" }));
+    zeichnung = { bild: bild, breite: breite, punkte: punkte, kreuz: kreuz, ring: ring, oben: padT, unten: basis };
+  }
+
+  function beruehrung(ereignis) {
+    if (!zeichnung) return;
+    var rahmen = zeichnung.bild.getBoundingClientRect();
+    var x = (ereignis.clientX - rahmen.left) * (zeichnung.breite / rahmen.width);
+    var naechster = zeichnung.punkte[0];
+    zeichnung.punkte.forEach(function (p) {
+      if (Math.abs(p.x - x) < Math.abs(naechster.x - x)) naechster = p;
+    });
+    zeichnung.kreuz.setAttribute("x1", naechster.x);
+    zeichnung.kreuz.setAttribute("x2", naechster.x);
+    zeichnung.kreuz.setAttribute("opacity", 1);
+    zeichnung.ring.setAttribute("cx", naechster.x);
+    zeichnung.ring.setAttribute("cy", naechster.y);
+    zeichnung.ring.setAttribute("opacity", 1);
+
+    var tipp = el("verlaufTooltip");
+    tipp.textContent = fmtDatumLang(naechster.e.datum) + " · " + fmtEuro(naechster.e.gesamt);
+    tipp.classList.add("an");
+    var massstab = rahmen.width / zeichnung.breite;
+    tipp.style.left = Math.min(Math.max(naechster.x * massstab, 60), rahmen.width - 60) + "px";
+    tipp.style.top = (naechster.y * massstab - 8) + "px";
+  }
+  function beruehrungEnde() {
+    if (!zeichnung) return;
+    zeichnung.kreuz.setAttribute("opacity", 0);
+    zeichnung.ring.setAttribute("opacity", 0);
+    el("verlaufTooltip").classList.remove("an");
+  }
+  el("verlaufFlaeche").addEventListener("pointermove", beruehrung);
+  el("verlaufFlaeche").addEventListener("pointerdown", beruehrung);
+  el("verlaufFlaeche").addEventListener("pointerleave", beruehrungEnde);
+  el("verlaufFlaeche").addEventListener("pointercancel", beruehrungEnde);
+
+  function zeigeVerlauf() {
+    var eintraege = zustand.verlauf;
+    var kacheln = el("verlaufKacheln");
+    var tabelle = el("verlaufTabelle");
+    kacheln.textContent = "";
+    tabelle.textContent = "";
+    beruehrungEnde();
+
+    if (!eintraege.length) {
+      zeichneDiagramm();
+      tabelle.append(neu("p", "v-leer",
+        "Noch keine Einträge. Sobald du einen Wert änderst, wird der heutige Stand festgehalten."));
+      el("verlaufNotiz").textContent = "";
+      return;
+    }
+
+    var erster = eintraege[0], letzter = eintraege[eintraege.length - 1];
+    var gesamtDelta = letzter.gesamt - erster.gesamt;
+    var prozDelta = erster.gesamt !== 0 ? (gesamtDelta / Math.abs(erster.gesamt)) * 100 : 0;
+    [
+      { titel: "Aktuell", wert: fmtEuroKurz(letzter.gesamt) },
+      { titel: "seit " + fmtDatumKurz(erster.datum), wert: eintraege.length > 1 ? (gesamtDelta >= 0 ? "+" : "−") + fmtEuroKurz(Math.abs(gesamtDelta)) : "—" },
+      { titel: eintraege.length === 1 ? "Eintrag" : "Einträge", wert: String(eintraege.length) }
+    ].forEach(function (k, i) {
+      var kachel = neu("div", "kachel");
+      kachel.append(neu("div", "k-titel", k.titel));
+      var w = neu("div", "k-wert", k.wert);
+      if (i === 1 && eintraege.length > 1) w.style.color = gesamtDelta >= 0 ? "var(--gut)" : "var(--warn)";
+      kachel.append(w);
+      kacheln.append(kachel);
+    });
+
+    zeichneDiagramm();
+
+    var tab = neu("table", "v-tabelle");
+    var kopf = neu("tr");
+    ["Datum", "Gesamt", "Veränderung", ""].forEach(function (t, i) {
+      kopf.append(neu("th", i === 0 ? "" : "r", t));
+    });
+    var kopfbereich = neu("thead");
+    kopfbereich.append(kopf);
+    tab.append(kopfbereich);
+    var koerper = neu("tbody");
+    eintraege.slice().reverse().forEach(function (e) {
+      var stelle = eintraege.indexOf(e);
+      var vorher = stelle > 0 ? eintraege[stelle - 1] : null;
+      var zeile = neu("tr");
+      zeile.append(neu("td", "", fmtDatumTabelle(e.datum)));
+      zeile.append(neu("td", "r", fmtEuro(e.gesamt)));
+      var delta = neu("td", "r");
+      if (vorher) {
+        var d = e.gesamt - vorher.gesamt;
+        delta.className = "r " + (d >= 0 ? "hoch" : "runter");
+        delta.textContent = mitVorzeichen(d);
+      } else {
+        delta.textContent = "—";
+      }
+      zeile.append(delta);
+      var weg = neu("td", "r");
+      var knopf = neu("button", "v-loeschen", "✕");
+      knopf.type = "button";
+      knopf.title = "Eintrag löschen";
+      knopf.setAttribute("aria-label", "Eintrag vom " + fmtDatumLang(e.datum) + " löschen");
+      knopf.addEventListener("click", function () {
+        if (!confirm("Eintrag vom " + fmtDatumLang(e.datum) + " löschen?")) return;
+        zustand.verlauf = zustand.verlauf.filter(function (x) { return x.datum !== e.datum; });
+        speichern();
+        zeigeDelta();
+        zeigeVerlauf();
+      });
+      weg.append(knopf);
+      zeile.append(weg);
+      koerper.append(zeile);
+    });
+    tab.append(koerper);
+    tabelle.append(tab);
+
+    el("verlaufBild").setAttribute("aria-label",
+      "Verlauf des Gesamtvermögens, " + eintraege.length + " Einträge von " +
+      fmtDatumLang(erster.datum) + " mit " + fmtEuro(erster.gesamt) + " bis " +
+      fmtDatumLang(letzter.datum) + " mit " + fmtEuro(letzter.gesamt) +
+      ", Veränderung " + mitVorzeichen(gesamtDelta) + " oder " + proz.format(prozDelta) + " Prozent.");
+    el("verlaufNotiz").textContent =
+      "Festgehalten wird ein Stand pro Tag — änderst du am selben Tag noch etwas, " +
+      "wird der Eintrag überschrieben statt verdoppelt.";
+  }
+
+  el("verlaufOeffnen").addEventListener("click", function () {
+    fenster.showModal();   // erst öffnen, dann zeichnen: vorher ist die Breite unbekannt
+    zeigeVerlauf();
+  });
+  el("verlaufSchliessen").addEventListener("click", function () { fenster.close(); });
+  fenster.addEventListener("click", function (ereignis) {
+    if (ereignis.target === fenster) fenster.close();  // Klick auf den Hintergrund
+  });
+  window.addEventListener("resize", function () { if (fenster.open) zeichneDiagramm(); });
+
+  // Schreibt alle Eingabefelder aus dem Zustand neu — nach Zurücksetzen
+  // oder nach dem Laden einer Sicherung.
+  function alleFelderSchreiben() {
+    guthabenFeld.value = zustand.guthaben == null ? "" : zahl2.format(zustand.guthaben);
+    pufferFeld.value = zahl2.format(zustand.puffer);
+    STANDARD_POSITIONEN.forEach(function (p) {
+      refs[p.id].input.value = zahl2.format(zustand.werte[p.id]);
+      refs["gew-" + p.id].input.value = prozZiel.format(zustand.gewichte[p.id]);
+    });
+    STANDARD_ALTLASTEN.forEach(function (a) {
+      refs["altlasten-" + a.id].input.value = zahl2.format(zustand.altlasten[a.id]);
+    });
+    STANDARD_BEOBACHTET.forEach(function (a) {
+      refs["beobachtet-" + a.id].input.value = zahl2.format(zustand.beobachtet[a.id]);
+    });
+  }
+
+  // ---- Anzeige rund ums Speichern ---------------------------------------
+  function zeigeSpeicherStand() {
+    var ziel = el("speicherStand");
+    var leiste = el("speicherLeiste");
+
+    document.getElementById("speichernKnopf").disabled = !ungespeichert;
+    document.getElementById("speichernKnopf2").disabled = false;
+    leiste.hidden = !ungespeichert;
+    document.body.classList.toggle("hat-leiste", ungespeichert);
+
+    if (!speicherGeht) {
+      ziel.textContent = "Dieser Browser lässt die Seite nichts speichern.";
+      ziel.className = "notiz warn";
+      return;
+    }
+    if (ungespeichert) {
+      ziel.textContent = "Du hast Werte geändert. Tippe auf „Änderungen speichern“, " +
+        "damit sie erhalten bleiben und der heutige Stand im Verlauf vermerkt wird.";
+      ziel.className = "notiz merken";
+      return;
+    }
+    if (zustand.gespeichertAm) {
+      ziel.textContent = "Gespeichert: " + new Date(zustand.gespeichertAm)
+        .toLocaleString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + " Uhr.";
+      ziel.className = "notiz";
+      return;
+    }
+    ziel.textContent = "Noch nichts gespeichert.";
+    ziel.className = "notiz";
+  }
+
+  // ---- Speicherhinweis --------------------------------------------------
+  function zeigeSpeicherHinweis() {
+    var kasten = el("speicherHinweis");
+    if (!speicherGeht) {
+      el("speicherHinweisText").textContent =
+        "Dieser Browser lässt die Seite nichts speichern. Deine Eingaben sind beim " +
+        "nächsten Öffnen weg.";
+      kasten.hidden = false;
+    } else if (!hatteDaten) {
+      el("speicherHinweisText").textContent =
+        "Keine gespeicherten Werte gefunden — die Felder sind leer. " +
+        "Trag deine Beträge ein und tippe unten auf „Änderungen speichern“.";
+      kasten.hidden = false;
+    } else {
+      kasten.hidden = true;
+    }
+  }
+
+  function aenderungenSpeichern() {
+    aktualisieren();          // Gesamtvermögen auf den neuesten Stand bringen
+    verlaufErfassen();        // heutigen Stand im Verlauf vermerken
+    speichern();
+    zeigeDelta();
+  }
+  el("speichernKnopf").addEventListener("click", aenderungenSpeichern);
+  el("speichernKnopf2").addEventListener("click", aenderungenSpeichern);
+
+  // Wurde der Stand aus dem Browserspeicher nicht gefunden, kann er noch in
+  // der zweiten Ablage liegen — die wird erst nachträglich gelesen.
+  if (!hatteDaten) {
+    datenbankLesen(function (text) {
+      if (!text || ungespeichert) return;
+      var g;
+      try { g = JSON.parse(text); } catch (e) { return; }
+      if (!uebernehmen(g)) return;
+      hatteDaten = true;
+      alleFelderSchreiben();
+      aktualisieren();
+      zeigeDelta();
+      zeigeSpeicherHinweis();
+      zeigeSpeicherStand();
+    });
+  }
+
+  el("zuruecksetzen").addEventListener("click", function () {
+    if (!confirm("Alle Beträge auf null zurücksetzen? Der Verlauf bleibt erhalten.")) return;
+    var bisherigerVerlauf = zustand.verlauf;
+    zustand = standardZustand();
+    zustand.verlauf = bisherigerVerlauf;
+    alleFelderSchreiben();
+    aktualisieren();
+    markiereUngespeichert();
+    zeigeDelta();
+  });
+
+  el("fassung").textContent = "Fassung " + FASSUNG;
+
+  aktualisieren();
+  zeigeDelta();
+  zeigeSpeicherHinweis();
+  zeigeSpeicherStand();
+})();
+</script>
+</body>
+</html>
