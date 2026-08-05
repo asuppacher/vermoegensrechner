@@ -110,6 +110,18 @@
   input.schmal { width: 6em; }
   .einheit { color: var(--ink-faint); font-size: 14px; width: 1.1em; }
 
+  /* Ampelrahmen um den Kasten mit dem Bankguthaben */
+  .puffer-kasten { border-width: 3px; border-color: var(--rahmen, var(--line)); transition: border-color .2s ease; }
+  .fb-kopf { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .fb-kopf h2 { margin: 0; }
+  .fb-chip {
+    flex: 0 0 auto; font-size: 12.5px; font-weight: 650; white-space: nowrap;
+    font-variant-numeric: tabular-nums; color: var(--rahmen, var(--ink-mute));
+    border: 1px solid color-mix(in srgb, var(--rahmen, var(--line)) 45%, var(--line));
+    border-radius: 999px; padding: 2px 9px;
+  }
+  .fb-chip[hidden] { display: none; }
+
   .betrag-gross {
     margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);
     display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
@@ -164,7 +176,7 @@
   .k-punkt { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
   .k-name { flex: 1 1 auto; color: var(--ink-mute); }
   .k-euro { font-variant-numeric: tabular-nums; font-weight: 600; }
-  .k-proz { font-variant-numeric: tabular-nums; color: var(--ink-faint); width: 4.2em; text-align: right; font-size: 13px; }
+  .k-proz { font-variant-numeric: tabular-nums; color: var(--ink-faint); width: 5.1em; text-align: right; font-size: 13px; }
   .t-stueck { cursor: default; transition: opacity .12s ease; }
   .t-stueck.blass { opacity: .32; }
   .t-mitte { fill: var(--ink-faint); font-size: 11px; text-anchor: middle; }
@@ -189,7 +201,7 @@
   .v-punkt { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
   .v-name { flex: 1 1 auto; color: var(--ink-mute); }
   .v-euro { font-variant-numeric: tabular-nums; font-weight: 600; }
-  .v-proz { font-variant-numeric: tabular-nums; color: var(--ink-faint); width: 4.2em; text-align: right; font-size: 13px; }
+  .v-proz { font-variant-numeric: tabular-nums; color: var(--ink-faint); width: 5.1em; text-align: right; font-size: 13px; }
   .f-bespart { background: var(--g-bespart); }
   .f-alt { background: var(--g-alt); }
   .f-beob { background: var(--g-beob); }
@@ -316,8 +328,11 @@
     <span id="tagHinweisText"></span>
   </div>
 
-  <section class="card" aria-label="Freier Betrag">
-    <h2>Freier Betrag</h2>
+  <section class="card puffer-kasten" id="pufferKasten" aria-label="Freier Betrag">
+    <div class="fb-kopf">
+      <h2>Freier Betrag</h2>
+      <span class="fb-chip" id="pufferChip" hidden></span>
+    </div>
     <div class="feld">
       <label for="guthaben">Bankguthaben</label>
       <span class="eingabe"><input type="text" id="guthaben" inputmode="decimal" autocomplete="off" placeholder="0,00"><span class="einheit">€</span></span>
@@ -327,7 +342,7 @@
       <span class="eingabe"><input type="text" id="puffer" inputmode="decimal" autocomplete="off"><span class="einheit">€</span></span>
     </div>
     <div class="betrag-gross">
-      <span class="beschriftung" id="freiBeschriftung">Zu verteilen (auf 100 € abgerundet)</span>
+      <span class="beschriftung" id="freiBeschriftung">Zu verteilen</span>
       <span class="wert" id="freiWert">—</span>
     </div>
   </section>
@@ -395,13 +410,18 @@
   var MIN_KAUF = 200;    // Mindestbetrag pro Order
 
   /**
-   * Freier Betrag = Bankguthaben − Cash-Puffer, abgerundet auf volle 100 €.
-   * Null oder negativ => 0.
+   * Freier Betrag am 15.:
+   *   Liegt das Bankguthaben unter dem Puffer, wird nichts investiert.
+   *   Sonst wird der Betrag über dem Puffer auf volle 100 € AUFgerundet —
+   *   jeder angefangene Hunderter zählt voll.
+   *   Es wird nie weniger als der Mindestbetrag einer Order investiert:
+   *   Steht genau der Puffer auf dem Konto, sind es trotzdem 200 €.
    */
   function berechneFreienBetrag(guthaben, puffer) {
     var roh = (Number(guthaben) || 0) - (Number(puffer) || 0);
-    if (!isFinite(roh) || roh <= 0) return 0;
-    return Math.floor(roh / 100) * 100;
+    if (!isFinite(roh) || roh < 0) return 0;
+    roh = Math.round(roh * 100) / 100;              // auf Cent, gegen Rundungsstaub
+    return Math.max(MIN_KAUF, Math.ceil(roh / 100) * 100);
   }
 
   /**
@@ -565,7 +585,7 @@
   var STANDARD_PUFFER = 10000;
   var SPEICHER = "zuflussverteiler.v1";
   var INVEST_TAG = 15;
-  var FASSUNG = "2026-08-05 e";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+  var FASSUNG = "2026-08-05 f";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
 
   var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -992,6 +1012,35 @@
       "Heute ist nicht der 15. Deine Zusatzkäufe machst du am 15. — bis dahin ist das hier nur eine Vorschau.";
   }
 
+  // ---- Ampelrahmen um den Kasten mit dem Bankguthaben -------------------
+  // Die Stufen hängen am Puffer, nicht an festen Beträgen: Änderst du den
+  // Puffer, verschieben sie sich mit. Bei 10.000 € Puffer ergibt das genau
+  // die Grenzen 11.000 / 10.000 / 8.500 / 7.000 €.
+  var AMPEL = [
+    { abPuffer:  1000, farbe: "#79b0f5" },   // ab Puffer + 1.000 €: blau
+    { abPuffer:     0, farbe: "#4fd39c" },   // Puffer erreicht: hellgrün
+    { abPuffer: -1500, farbe: "#e6cf5a" },   // bis 1.500 € darunter: gelb
+    { abPuffer: -3000, farbe: "#e9a13b" },   // bis 3.000 € darunter: orange
+    { abPuffer: -Infinity, farbe: "#ff9086" } // tiefer: rot
+  ];
+
+  function zeigeAmpel(guthaben, puffer) {
+    var kasten = el("pufferKasten");
+    var chip = el("pufferChip");
+    if (guthaben == null) {
+      kasten.style.removeProperty("--rahmen");
+      chip.hidden = true;
+      return;
+    }
+    var abstand = guthaben - puffer;
+    var stufe = AMPEL.filter(function (a) { return abstand >= a.abPuffer; })[0] || AMPEL[AMPEL.length - 1];
+    kasten.style.setProperty("--rahmen", stufe.farbe);
+    chip.hidden = false;
+    var betrag = Math.abs(abstand);
+    chip.textContent = "Puffer " + (abstand >= 0 ? "+" : "−") +
+      (betrag < 100 ? fmtEuro(betrag) : fmtEuroKurz(betrag));   // sonst stünde da "−0 €"
+  }
+
   // ---- Rechnen und anzeigen --------------------------------------------
   function aktualisieren() {
     var positionen = STANDARD_POSITIONEN.map(function (p) {
@@ -999,6 +1048,7 @@
     });
 
     var hatGuthaben = zustand.guthaben != null;
+    zeigeAmpel(zustand.guthaben, zustand.puffer || 0);
     var frei = ZV.berechneFreienBetrag(zustand.guthaben || 0, zustand.puffer || 0);
     var e = ZV.berechneVerteilung(frei, positionen);
 
@@ -1012,11 +1062,11 @@
     } else if (frei <= 0) {
       freiWert.className = "wert null";
       freiWert.textContent = "Diesen Monat kein Zusatzinvestment.";
-      freiBesch.textContent = "Guthaben liegt nicht über dem Puffer";
+      freiBesch.textContent = "Bankguthaben liegt unter dem Puffer";
     } else {
       freiWert.className = "wert";
       freiWert.textContent = fmtEuroKurz(frei);
-      freiBesch.textContent = "Zu verteilen (auf 100 € abgerundet)";
+      freiBesch.textContent = "Zu verteilen (auf volle 100 € aufgerundet)";
     }
 
     el("kBasis").textContent = fmtEuroKurz(e.basis);
