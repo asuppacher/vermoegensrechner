@@ -665,30 +665,35 @@
 
   // Namen und Zielgewichte sind fest hinterlegt, Beträge nicht: Die Seite
   // startet leer und zeigt nur, was selbst eingetragen und gespeichert wurde.
+  // Die Zielgewichte sind nicht von Hand eingetragen, sondern ergeben sich aus
+  // den Sparraten: jede Position bekommt ihren Anteil an der Sparsumme.
+  // 825 € im Monat, davon 400 € in den World => 48,485 %.
   var STANDARD_POSITIONEN = [
-    { id: "world",   name: "Core MSCI World",        gewicht: 50,    wert: 0, block: null,          sparrate: 400 },
-    { id: "em",      name: "MSCI Emerging Markets",  gewicht: 18.75, wert: 0, block: null,          sparrate: 150 },
-    { id: "wsc",     name: "MSCI World Small Cap",   gewicht: 9.375, wert: 0, block: null,          sparrate: 75 },
-    { id: "emsc",    name: "MSCI EM Small Cap",      gewicht: 6.25,  wert: 0, block: null,          sparrate: 50 },
-    { id: "europe",  name: "Core Stoxx Europe 600",  gewicht: 6.25,  wert: 0, block: null,          sparrate: 50 },
-    { id: "africa",  name: "MSCI Africa Top 50",     gewicht: 3.125, wert: 0, block: null,          sparrate: 25 },
-    { id: "gold",    name: "Gold",                   gewicht: 3.125, wert: 0, block: "edelmetalle", sparrate: 25 },
-    { id: "silber",  name: "Silber",                 gewicht: 3.125, wert: 0, block: "edelmetalle", sparrate: 25 }
+    { id: "world",   name: "Core MSCI World",       wert: 0, block: null,          sparrate: 400 },
+    { id: "em",      name: "MSCI Emerging Markets", wert: 0, block: null,          sparrate: 150 },
+    { id: "wsc",     name: "MSCI World Small Cap",  wert: 0, block: null,          sparrate: 75 },
+    { id: "emsc",    name: "MSCI EM Small Cap",     wert: 0, block: null,          sparrate: 50 },
+    { id: "europe",  name: "Core Stoxx Europe 600", wert: 0, block: null,          sparrate: 50 },
+    { id: "africa",  name: "MSCI Africa Top 50",    wert: 0, block: null,          sparrate: 25 },
+    { id: "gold",    name: "Gold",                  wert: 0, block: "edelmetalle", sparrate: 25 },
+    { id: "silber",  name: "Silber",                wert: 0, block: "edelmetalle", sparrate: 25 },
+    { id: "btc",     name: "Bitcoin",               wert: 0, block: null,          sparrate: 25 }
   ];
+  var SPARSUMME = STANDARD_POSITIONEN.reduce(function (s, p) { return s + p.sparrate; }, 0);
+  STANDARD_POSITIONEN.forEach(function (p) { p.gewicht = p.sparrate / SPARSUMME * 100; });
   var STANDARD_ALTLASTEN = [
     { id: "wit",   name: "World Information Technology", wert: 0 },
     { id: "aibd",  name: "AI & Big Data",                wert: 0 },
     { id: "scgt",  name: "Small Cap Green Transition",   wert: 0 }
   ];
   var STANDARD_BEOBACHTET = [
-    { id: "btc",    name: "Bitcoin",                 wert: 0 },
     { id: "apollo", name: "Apollo (Private Markets)", wert: 0 },
     { id: "eqt",    name: "EQT (Private Markets)",    wert: 0 }
   ];
   var STANDARD_PUFFER = 10000;
   var SPEICHER = "zuflussverteiler.v1";
   var INVEST_TAG = 15;
-  var FASSUNG = "2026-08-06 g";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+  var FASSUNG = "2026-08-06 h";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
 
   var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -758,6 +763,17 @@
           return e && /^\d{4}-\d{2}-\d{2}$/.test(e.datum) && typeof e.gesamt === "number" && isFinite(e.gesamt);
         })
         .sort(function (a, b) { return a.datum < b.datum ? -1 : 1; });
+    }
+
+    // Bitcoin lag früher unter "Beobachten" und wird jetzt bespart. Ein alter
+    // Stand bringt den Wert dort mit — der wandert einmalig herüber. Weil sich
+    // dadurch die Sparsumme ändert, werden zugleich alle Zielgewichte auf die
+    // neue Aufteilung gesetzt; die alten summierten sich ohne Bitcoin auf 100 %.
+    var alterBitcoin = g.beobachtet && g.beobachtet.btc;
+    var hatNeuenBitcoin = g.werte && typeof g.werte.btc === "number";
+    if (typeof alterBitcoin === "number" && isFinite(alterBitcoin) && !hatNeuenBitcoin) {
+      zustand.werte.btc = alterBitcoin;
+      STANDARD_POSITIONEN.forEach(function (p) { zustand.gewichte[p.id] = p.gewicht; });
     }
     return true;
   }
@@ -1099,6 +1115,7 @@
   var EDELMETALL_IDS = ["gold", "silber"];
   var PRIVATE_MARKETS_IDS = ["apollo", "eqt"];
   var KRYPTO_IDS = ["btc"];
+  var KEINE_ETFS = EDELMETALL_IDS.concat(KRYPTO_IDS);
 
   function summeVon(feld, ids) {
     return ids.reduce(function (s, id) { return s + (zustand[feld][id] || 0); }, 0);
@@ -1109,14 +1126,14 @@
     { id: "etf", name: "ETFs", wert: function () {
         var s = 0;
         STANDARD_POSITIONEN.forEach(function (p) {
-          if (EDELMETALL_IDS.indexOf(p.id) < 0) s += zustand.werte[p.id] || 0;
+          if (KEINE_ETFS.indexOf(p.id) < 0) s += zustand.werte[p.id] || 0;
         });
         STANDARD_ALTLASTEN.forEach(function (a) { s += zustand.altlasten[a.id] || 0; });
         return s;
       } },
     { id: "pm", name: "Private Markets", wert: function () { return summeVon("beobachtet", PRIVATE_MARKETS_IDS); } },
     { id: "edel", name: "Edelmetalle", wert: function () { return summeVon("werte", EDELMETALL_IDS); } },
-    { id: "krypto", name: "Krypto", wert: function () { return summeVon("beobachtet", KRYPTO_IDS); } }
+    { id: "krypto", name: "Krypto", wert: function () { return summeVon("werte", KRYPTO_IDS); } }
   ];
 
   var klassenListe = el("klassenListe");
