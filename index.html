@@ -667,7 +667,7 @@
   // startet leer und zeigt nur, was selbst eingetragen und gespeichert wurde.
   // Die Zielgewichte sind nicht von Hand eingetragen, sondern ergeben sich aus
   // den Sparraten: jede Position bekommt ihren Anteil an der Sparsumme.
-  // 825 € im Monat, davon 400 € in den World => 48,485 %.
+  // 850 € im Monat, davon 400 € in den World => 47,059 %.
   var STANDARD_POSITIONEN = [
     { id: "world",   name: "Core MSCI World",       wert: 0, block: null,          sparrate: 400 },
     { id: "em",      name: "MSCI Emerging Markets", wert: 0, block: null,          sparrate: 150 },
@@ -677,7 +677,7 @@
     { id: "africa",  name: "MSCI Africa Top 50",    wert: 0, block: null,          sparrate: 25 },
     { id: "gold",    name: "Gold",                  wert: 0, block: "edelmetalle", sparrate: 25 },
     { id: "silber",  name: "Silber",                wert: 0, block: "edelmetalle", sparrate: 25 },
-    { id: "btc",     name: "Bitcoin",               wert: 0, block: null,          sparrate: 25 }
+    { id: "btc",     name: "Bitcoin",               wert: 0, block: null,          sparrate: 50 }
   ];
   var SPARSUMME = STANDARD_POSITIONEN.reduce(function (s, p) { return s + p.sparrate; }, 0);
   STANDARD_POSITIONEN.forEach(function (p) { p.gewicht = p.sparrate / SPARSUMME * 100; });
@@ -693,7 +693,7 @@
   var STANDARD_PUFFER = 10000;
   var SPEICHER = "zuflussverteiler.v1";
   var INVEST_TAG = 15;
-  var FASSUNG = "2026-08-06 h";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+  var FASSUNG = "2026-08-06 j";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
 
   var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -725,7 +725,8 @@
       altlasten: STANDARD_ALTLASTEN.reduce(function (o, p) { o[p.id] = p.wert; return o; }, {}),
       beobachtet: STANDARD_BEOBACHTET.reduce(function (o, p) { o[p.id] = p.wert; return o; }, {}),
       verlauf: [],
-      gespeichertAm: null
+      gespeichertAm: null,
+      sparsumme: SPARSUMME   // woraus die Zielgewichte gerechnet sind
     };
   }
 
@@ -766,13 +767,19 @@
     }
 
     // Bitcoin lag früher unter "Beobachten" und wird jetzt bespart. Ein alter
-    // Stand bringt den Wert dort mit — der wandert einmalig herüber. Weil sich
-    // dadurch die Sparsumme ändert, werden zugleich alle Zielgewichte auf die
-    // neue Aufteilung gesetzt; die alten summierten sich ohne Bitcoin auf 100 %.
+    // Stand bringt den Wert dort mit — der wandert einmalig herüber.
     var alterBitcoin = g.beobachtet && g.beobachtet.btc;
     var hatNeuenBitcoin = g.werte && typeof g.werte.btc === "number";
     if (typeof alterBitcoin === "number" && isFinite(alterBitcoin) && !hatNeuenBitcoin) {
       zustand.werte.btc = alterBitcoin;
+    }
+
+    // Die Zielgewichte hängen an den Sparraten. Ändert sich eine Sparrate und
+    // damit die Sparsumme, stammen gespeicherte Gewichte aus einer anderen
+    // Aufteilung — sie summierten sich nur zur alten Sparsumme auf 100 %. Dann
+    // gilt die neue Aufteilung; von Hand gesetzte Prozentzahlen aus der alten
+    // Zeit gehen dabei verloren.
+    if (g.sparsumme !== SPARSUMME) {
       STANDARD_POSITIONEN.forEach(function (p) { zustand.gewichte[p.id] = p.gewicht; });
     }
     return true;
