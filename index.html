@@ -14,17 +14,18 @@
      geprüft, auch bei Farbsehschwäche. Bankguthaben trägt in beiden
      Diagrammen dasselbe Blau, weil es dieselbe Sache ist. */
   :root {
-    --bg: #0b1d16;
-    --card: #12281f;
+    --bg: #071410;
+    --card: rgba(24, 54, 39, .52);          /* mattes Glas */
+    --card-fest: #16321f;                   /* für Flächen ohne Glas */
     --ink: #e8f1ea;
     --ink-mute: #9db5a8;
-    --ink-faint: #7a978a;
-    --line: #1f3d31;
+    --ink-faint: #809d90;
+    --line: rgba(232, 241, 234, .09);
     --unter: #79b0f5;
     --ueber: #e9a13b;
     --gut: #4fd39c;
     --warn: #ff9086;
-    --radius: 14px;
+    --radius: 22px;
 
     /* Anlageklassen (Tortendiagramm) */
     --k-bank: #3987e5;
@@ -41,6 +42,13 @@
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(95% 55% at 50% -10%, #0d2318, transparent 70%),
+      radial-gradient(70% 40% at 10% 45%, #10291c, transparent 72%),
+      radial-gradient(80% 45% at 90% 92%, #0b1e15, transparent 70%);
+  }
   body {
     margin: 0;
     padding: 16px 14px calc(48px + env(safe-area-inset-bottom));
@@ -54,17 +62,42 @@
   .sub { color: var(--ink-faint); font-size: 13px; margin: 0 0 18px; }
 
   .card {
+    position: relative;
     background: var(--card);
-    border: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(34px) saturate(150%) brightness(108%);
+    backdrop-filter: blur(34px) saturate(150%) brightness(108%);
+    border: 1px solid rgba(232, 241, 234, .13);
     border-radius: var(--radius);
-    padding: 14px;
+    padding: 15px;
     margin-bottom: 14px;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.09),
+      inset 0 -1px 0 rgba(0,0,0,.26),
+      0 1px 2px rgba(0,0,0,.4),
+      0 22px 46px -20px rgba(0,0,0,.95),
+      0 0 40px -14px rgba(79, 211, 156, .13);
+  }
+  /* Feines Korn — das, was aus einer Scheibe geschliffenes Glas macht */
+  .card::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    opacity: .05; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='k'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/></filter><rect width='120' height='120' filter='url(%23k)'/></svg>");
+  }
+  .card > * { position: relative; z-index: 1; }
+  /* Der Ringkasten bleibt ohne Schein, die lange Positionsliste ohne Streuung —
+     das hält das Scrollen auf dem Handy flüssig. */
+  .card.ohne-schein { box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.09), inset 0 -1px 0 rgba(0,0,0,.26),
+      0 1px 2px rgba(0,0,0,.4), 0 22px 46px -20px rgba(0,0,0,.95); }
+  .card.schlicht {
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    background: var(--card-fest);
   }
 
   .hinweis {
     display: flex; gap: 8px; align-items: flex-start;
     font-size: 13px; color: var(--ink-mute);
-    background: var(--card); border: 1px dashed var(--line);
+    background: var(--card-fest); border: 1px dashed rgba(255,255,255,.14);
     border-radius: var(--radius); padding: 10px 12px; margin-bottom: 14px;
   }
   .hinweis[hidden] { display: none; }
@@ -75,16 +108,24 @@
   }
   .knopf-gross {
     width: 100%; padding: 14px 16px; font-size: 15.5px; font-weight: 650;
-    color: #06210f; background: var(--gut); border: none; border-radius: 11px;
+    color: #06210f; border: none; border-radius: 14px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--gut) 88%, white), var(--gut));
+    box-shadow: 0 1px 0 rgba(255,255,255,.4) inset,
+      0 6px 17px -6px color-mix(in srgb, var(--gut) 60%, transparent),
+      0 0 30px -8px color-mix(in srgb, var(--gut) 44%, transparent);
+    transition: transform .12s ease, filter .12s ease;
   }
-  .knopf-gross:disabled { background: var(--line); color: var(--ink-faint); }
+  .knopf-gross:active:not(:disabled) { transform: translateY(1px) scale(.99); filter: brightness(.94); }
+  .knopf-gross:disabled { background: rgba(255,255,255,.07); color: var(--ink-faint); box-shadow: none; }
   .knopf-gross:active:not(:disabled) { filter: brightness(.93); }
   .speicherleiste {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
     display: flex; align-items: center; gap: 12px;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-    background: var(--card); border-top: 1px solid var(--line);
-    box-shadow: 0 -8px 24px rgba(0,0,0,.35);
+    padding: 11px 14px calc(11px + env(safe-area-inset-bottom));
+    background: rgba(20, 46, 33, .72);
+    -webkit-backdrop-filter: blur(28px) saturate(150%); backdrop-filter: blur(28px) saturate(150%);
+    border-top: 1px solid rgba(255,255,255,.10);
+    box-shadow: 0 -10px 30px rgba(0,0,0,.5);
   }
   .speicherleiste[hidden] { display: none; }
   .speicherleiste .sl-text { flex: 1 1 auto; font-size: 13.5px; color: var(--ueber); font-weight: 600; }
@@ -100,25 +141,39 @@
     font-variant-numeric: tabular-nums;
     text-align: right;
     width: 8.5em;
-    padding: 9px 10px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: var(--bg);
+    padding: 10px 11px;
+    border: 1px solid rgba(0,0,0,.4);
+    border-radius: 13px;
+    background: rgba(0,0,0,.32);
     color: var(--ink);
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.5), inset 0 -1px 0 rgba(255,255,255,.05);
   }
-  input[type=text]:focus { outline: 2px solid var(--unter); outline-offset: -1px; }
+  input[type=text]:focus { outline: 2px solid color-mix(in srgb, var(--gut) 70%, transparent); outline-offset: 1px; }
   input.schmal { width: 6em; }
   .einheit { color: var(--ink-faint); font-size: 14px; width: 1.1em; }
 
   /* Ampelrahmen um den Kasten mit dem Bankguthaben */
-  .puffer-kasten { border-width: 3px; border-color: var(--rahmen, var(--line)); transition: border-color .2s ease; }
+  .puffer-kasten {
+    border: 2px solid color-mix(in srgb, var(--rahmen, var(--line)) 85%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.09),
+      inset 0 0 24px -10px color-mix(in srgb, var(--rahmen, transparent) 44%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--rahmen, transparent) 36%, transparent),
+      0 0 18px color-mix(in srgb, var(--rahmen, transparent) 32%, transparent),
+      0 0 50px -6px color-mix(in srgb, var(--rahmen, transparent) 27%, transparent),
+      0 22px 46px -20px rgba(0,0,0,.95);
+    transition: border-color .5s ease, box-shadow .5s ease;
+  }
   .fb-kopf { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
   .fb-kopf h2 { margin: 0; }
   .fb-chip {
     flex: 0 0 auto; font-size: 12.5px; font-weight: 650; white-space: nowrap;
     font-variant-numeric: tabular-nums; color: var(--rahmen, var(--ink-mute));
-    border: 1px solid color-mix(in srgb, var(--rahmen, var(--line)) 45%, var(--line));
-    border-radius: 999px; padding: 2px 9px;
+    border: 1px solid color-mix(in srgb, var(--rahmen, var(--line)) 45%, transparent);
+    background: color-mix(in srgb, var(--rahmen, transparent) 13%, transparent);
+    box-shadow: 0 0 14px -4px color-mix(in srgb, var(--rahmen, transparent) 48%, transparent);
+    border-radius: 999px; padding: 3px 10px;
+    transition: color .5s ease, border-color .5s ease, background-color .5s ease, box-shadow .5s ease;
   }
   .fb-chip[hidden] { display: none; }
 
@@ -131,7 +186,11 @@
   .betrag-gross .beschriftung { font-size: 13px; color: var(--ink-mute); }
 
   .kacheln { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .kachel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; }
+  .kachel {
+    background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.06);
+    border-radius: 14px; padding: 10px; text-align: center;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,.4);
+  }
   .kachel .k-titel { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-faint); }
   .kachel .k-wert { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 3px; }
   .kachel.rest .k-wert { color: var(--ueber); }
@@ -141,19 +200,25 @@
   .pos + .pos { border-top: 1px solid var(--line); }
   .pos-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
   .pos-name { font-weight: 600; font-size: 15.5px; }
-  .pos-kauf { font-variant-numeric: tabular-nums; font-weight: 650; font-size: 15.5px; color: var(--gut); white-space: nowrap; }
+  .pos-kauf { font-variant-numeric: tabular-nums; font-weight: 650; font-size: 15.5px; color: var(--gut); white-space: nowrap; text-shadow: 0 0 16px color-mix(in srgb, var(--gut) 44%, transparent); }
   .pos-kauf.keiner { color: var(--ink-faint); font-weight: 500; }
   .pos-zahlen { display: flex; gap: 10px; font-size: 12.5px; color: var(--ink-mute); font-variant-numeric: tabular-nums; margin-top: 2px; }
   .pos-zahlen .abw.unter { color: var(--unter); }
   .pos-zahlen .abw.ueber { color: var(--ueber); }
 
-  .balken { position: relative; height: 8px; background: var(--bg); border-radius: 4px; margin: 8px 0 9px; overflow: hidden; }
+  .balken {
+    position: relative; height: 9px; border-radius: 5px; margin: 9px 0 9px; overflow: hidden;
+    background: rgba(0,0,0,.34); box-shadow: inset 0 1px 3px rgba(0,0,0,.5);
+  }
   .balken::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--ink-faint); opacity: .5; }
-  .balken i { position: absolute; top: 0; bottom: 0; border-radius: 3px; display: block; }
+  .balken i {
+    position: absolute; top: 0; bottom: 0; border-radius: 4px; display: block;
+    transition: left .7s cubic-bezier(.22,.61,.36,1), width .7s cubic-bezier(.22,.61,.36,1);
+  }
   .balken i.unter { background: var(--unter); }
   .balken i.ueber { background: var(--ueber); }
 
-  .block { border: 1px solid var(--line); border-radius: 12px; padding: 2px 12px 4px; margin: 12px 0; background: var(--bg); }
+  .block { border: 1px solid rgba(255,255,255,.07); border-radius: 16px; padding: 2px 12px 4px; margin: 12px 0; background: rgba(0,0,0,.18); }
   .block-kopf { padding: 10px 0 6px; font-size: 12.5px; color: var(--ink-mute); }
   .block-kopf b { display: block; color: var(--ink); font-size: 13.5px; margin-bottom: 1px; }
   .block .pos:first-of-type { border-top: 1px solid var(--line); }
@@ -187,6 +252,41 @@
   .p-edel { background: var(--k-edel); } .f-k-edel { fill: var(--k-edel); }
   .p-krypto { background: var(--k-krypto); } .f-k-krypto { fill: var(--k-krypto); }
 
+  /* Zählwerk wie ein alter Kilometerzähler */
+  .tacho {
+    display: inline-flex; align-items: stretch; gap: 2px;
+    margin: 4px 0 2px; padding: 9px 11px; border-radius: 15px;
+    font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums;
+    background: rgba(0,0,0,.36); border: 1px solid rgba(0,0,0,.45);
+    box-shadow: inset 0 3px 9px rgba(0,0,0,.6), inset 0 -1px 0 rgba(255,255,255,.06);
+  }
+  .tacho .rad {
+    position: relative; width: .66em; height: 1.16em; overflow: hidden; border-radius: 5px;
+    background: linear-gradient(180deg, #0a1a13, #1b3a2a 45%, #0a1a13);
+    box-shadow: inset 0 0 7px rgba(0,0,0,.75), 0 1px 0 rgba(255,255,255,.05);
+    transition: opacity .45s ease;
+  }
+  .tacho .rad.schlummert, .tacho .zeichen.schlummert { opacity: .34; }
+  .tacho .rad::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+    background: linear-gradient(180deg, rgba(0,0,0,.62), rgba(0,0,0,0) 34%, rgba(0,0,0,0) 62%, rgba(0,0,0,.62));
+  }
+  .tacho .band { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
+  .tacho .band > span { display: block; height: 1.16em; line-height: 1.16em; text-align: center; }
+  .tacho .zeichen { display: flex; align-items: center; padding: 0 1px; color: var(--ink-mute); transition: opacity .45s ease; }
+  .tacho .waehrung { display: flex; align-items: center; padding-left: 6px; font-weight: 650; }
+
+  /* Rollende Zahlen an allen übrigen Geldbeträgen */
+  .rollzahl { --zh: 1.25em; display: inline-flex; align-items: flex-start; line-height: var(--zh); height: var(--zh); overflow: hidden; font-variant-numeric: tabular-nums; vertical-align: bottom; }
+  .rollzahl .rolle { display: block; height: var(--zh); overflow: hidden; }
+  .rollzahl .band { display: block; will-change: transform; transition: transform .85s cubic-bezier(.16,.84,.32,1); }
+  .rollzahl .band > span { display: block; height: var(--zh); }
+  .rollzahl .fix { display: block; height: var(--zh); }
+  @media (prefers-reduced-motion: reduce) {
+    .rollzahl .band { transition: none; }
+    .balken i { transition: none; }
+  }
+
   .vermoegen { text-align: left; }
   .vermoegen .v-titel { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-faint); }
   .v-kopf { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
@@ -194,7 +294,7 @@
   .v-delta { font-size: 13px; color: var(--ink-mute); font-variant-numeric: tabular-nums; margin: 2px 0 10px; min-height: 1.2em; }
   .v-delta .hoch { color: var(--gut); font-weight: 600; }
   .v-delta .runter { color: var(--warn); font-weight: 600; }
-  .v-streifen { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--bg); margin-bottom: 12px; }
+  .v-streifen { display: flex; height: 9px; border-radius: 5px; overflow: hidden; background: rgba(0,0,0,.32); margin-bottom: 12px; box-shadow: inset 0 1px 3px rgba(0,0,0,.5); }
   .v-streifen i { display: block; height: 100%; }
   .v-zeile { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; font-size: 14px; }
   .v-zeile + .v-zeile { border-top: 1px solid var(--line); }
@@ -209,28 +309,31 @@
 
   details { margin-bottom: 14px; }
   summary {
-    cursor: pointer; list-style: none; padding: 12px 14px;
-    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    cursor: pointer; list-style: none; padding: 13px 15px;
+    background: var(--card-fest); border: 1px solid rgba(255,255,255,.08); border-radius: var(--radius);
     font-size: 14px; color: var(--ink-mute);
   }
   summary::-webkit-details-marker { display: none; }
   summary::after { content: " ▾"; color: var(--ink-faint); }
   details[open] summary { border-radius: var(--radius) var(--radius) 0 0; border-bottom: none; }
   details[open] summary::after { content: " ▴"; }
-  details .card { border-radius: 0 0 var(--radius) var(--radius); margin-bottom: 0; }
+  details .card { border-radius: 0 0 var(--radius) var(--radius); margin-bottom: 0; background: var(--card-fest); -webkit-backdrop-filter: none; backdrop-filter: none; }
 
   /* Verlauf */
   .knopf-verlauf { flex: 0 0 auto; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--unter); border-color: color-mix(in srgb, var(--unter) 35%, var(--line)); }
   dialog {
     width: min(640px, 100vw - 20px); max-height: 88vh; padding: 0; border: none;
-    border-radius: var(--radius); background: var(--card); color: var(--ink);
-    box-shadow: 0 18px 48px rgba(0,0,0,.45);
+    border-radius: var(--radius); color: var(--ink);
+    background: rgba(22, 50, 36, .92);
+    -webkit-backdrop-filter: blur(30px) saturate(150%); backdrop-filter: blur(30px) saturate(150%);
+    border: 1px solid rgba(255,255,255,.10);
+    box-shadow: 0 24px 60px rgba(0,0,0,.7);
   }
-  dialog::backdrop { background: rgba(4, 12, 9, .66); }
+  dialog::backdrop { background: rgba(4, 12, 9, .72); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
   .d-kopf {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding: 14px 14px 12px; border-bottom: 1px solid var(--line);
-    position: sticky; top: 0; background: var(--card); border-radius: var(--radius) var(--radius) 0 0;
+    position: sticky; top: 0; background: rgba(22, 50, 36, .96); border-radius: var(--radius) var(--radius) 0 0;
   }
   .d-kopf h2 { margin: 0; font-size: 14px; }
   .d-koerper { padding: 14px; overflow-y: auto; max-height: calc(88vh - 56px); }
@@ -238,7 +341,7 @@
   .verlauf-flaeche svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
   .v-tooltip {
     position: absolute; pointer-events: none; opacity: 0; transform: translate(-50%, -100%);
-    background: var(--ink); color: var(--card); font-size: 12px; line-height: 1.35;
+    background: var(--ink); color: #0a1a13; font-size: 12px; line-height: 1.35;
     padding: 5px 8px; border-radius: 7px; white-space: nowrap; font-variant-numeric: tabular-nums;
     transition: opacity .12s ease;
   }
@@ -248,7 +351,7 @@
   .vl-flaeche { fill: var(--unter); opacity: .12; }
   .vl-linie { fill: none; stroke: var(--unter); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
   .vl-punkt { fill: var(--unter); }
-  .vl-ende { fill: var(--unter); stroke: var(--card); stroke-width: 2; }
+  .vl-ende { fill: var(--unter); stroke: #16321f; stroke-width: 2; }
   .vl-kreuz { stroke: var(--ink-faint); stroke-width: 1; }
   .vl-schrift { fill: var(--ink-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
   .vl-schrift.stark { fill: var(--ink); font-size: 12px; font-weight: 600; }
@@ -271,7 +374,7 @@
   .fuss { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 18px; font-size: 12.5px; color: var(--ink-faint); }
   button {
     font: inherit; font-size: 13px; padding: 9px 14px; border-radius: 10px;
-    border: 1px solid var(--line); background: var(--card); color: var(--ink-mute); cursor: pointer;
+    border: 1px solid rgba(255,255,255,.10); background: var(--card-fest); color: var(--ink-mute); cursor: pointer;
   }
   button:active { transform: translateY(1px); }
 </style>
@@ -301,7 +404,7 @@
 
   <section class="card vermoegen" aria-label="Gesamtvermögen">
     <div class="v-titel">Gesamtvermögen</div>
-    <div class="v-wert" id="vGesamt">—</div>
+    <div class="tacho" id="vGesamt" aria-label="Gesamtvermögen"></div>
     <div class="v-delta" id="vDelta"></div>
     <div class="v-streifen" id="vStreifen" aria-hidden="true"></div>
     <div id="vAufschluesselung"></div>
@@ -585,7 +688,7 @@
   var STANDARD_PUFFER = 10000;
   var SPEICHER = "zuflussverteiler.v1";
   var INVEST_TAG = 15;
-  var FASSUNG = "2026-08-05 f";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+  var FASSUNG = "2026-08-06 g";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
 
   var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -723,6 +826,130 @@
   }
 
   function el(id) { return document.getElementById(id); }
+
+  var sanfteBewegung = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---- Zählwerk: sieben Euro-Stellen, zwei für die Cent -----------------
+  // Nur die rechte Walze dreht durchgehend; jede weitere wird erst im letzten
+  // Zehntel ihrer Nachbarin mitgenommen — wie im Auto. Stellen, die der Betrag
+  // noch nie erreicht hat, sind gedämpft.
+  var TACHO_STELLEN = 9, TACHO_EURO = 7;
+  var TACHO_TRENNER = { 1: ".", 4: ".", 7: "," };
+  var tachoRaeder = [], tachoZellen = [], tachoZeichen = {};
+
+  function tachoBauen() {
+    var box = el("vGesamt");
+    box.textContent = "";
+    tachoRaeder = []; tachoZellen = []; tachoZeichen = {};
+    for (var i = 0; i < TACHO_STELLEN; i++) {
+      var rad = neu("span", "rad");
+      var band = neu("span", "band");
+      for (var d = 0; d <= 10; d++) band.append(neu("span", "", String(d % 10)));
+      rad.append(band);
+      box.append(rad);
+      tachoRaeder.push(band);
+      tachoZellen.push(rad);
+      if (TACHO_TRENNER[i + 1]) {
+        var t = neu("span", "zeichen", TACHO_TRENNER[i + 1]);
+        box.append(t);
+        tachoZeichen[i] = t;
+      }
+    }
+    box.append(neu("span", "waehrung", "€"));
+  }
+
+  function tachoSetzen(cent) {
+    if (!(cent >= 0)) cent = 0;
+    var euro = Math.floor(cent / 100);
+    var erreicht = String(Math.max(1, euro)).length;
+    var schlummernd = Math.max(0, TACHO_EURO - erreicht);
+    // Stellung jeder Walze, von rechts nach links aufgebaut: Die rechte dreht
+    // durchgehend, jede weitere wird nur von ihrer direkten Nachbarin
+    // mitgenommen — und auch nur, während die über die Neun hinausläuft.
+    var lagen = [];
+    for (var p = 0; p < TACHO_STELLEN; p++) {
+      if (p === 0) {
+        lagen[0] = cent % 10;
+      } else {
+        var ziffer = Math.floor(cent / Math.pow(10, p)) % 10;
+        lagen[p] = ziffer + Math.min(1, Math.max(0, lagen[p - 1] - 9));
+      }
+    }
+
+    for (var i = 0; i < TACHO_STELLEN; i++) {
+      var stellenwert = TACHO_STELLEN - 1 - i;
+      var lage = lagen[stellenwert];
+      tachoRaeder[i].style.transform = "translateY(calc(" + (-lage).toFixed(4) + " * 1.16em))";
+      var aus = i < schlummernd;
+      tachoZellen[i].classList.toggle("schlummert", aus);
+      if (tachoZeichen[i]) tachoZeichen[i].classList.toggle("schlummert", aus && i + 1 <= schlummernd);
+    }
+  }
+
+  var tachoWert = 0, tachoLauf = null;
+  function tachoAuf(zielCent) {
+    if (sanfteBewegung) { tachoWert = zielCent; tachoSetzen(zielCent); return; }
+    var start = tachoWert, delta = zielCent - start, t0 = performance.now(), dauer = 1300;
+    if (Math.abs(delta) < 0.5) return;
+    if (tachoLauf) cancelAnimationFrame(tachoLauf);
+    tachoLauf = requestAnimationFrame(function schritt(t) {
+      var p = Math.min(1, (t - t0) / dauer);
+      var e = 1 - Math.pow(1 - p, 3);
+      tachoWert = p < 1 ? start + delta * e : zielCent;
+      tachoSetzen(tachoWert);
+      if (p < 1) tachoLauf = requestAnimationFrame(schritt);
+    });
+  }
+
+  // ---- Rollende Zahl: je Ziffer ein Band, das auf seine Stelle dreht ----
+  function rollSetzen(wrap, text) {
+    var muster = text.replace(/\d/g, "#");
+    if (wrap.dataset.muster !== muster) {
+      wrap.textContent = "";
+      for (var i = 0; i < text.length; i++) {
+        if (/\d/.test(text[i])) {
+          var rolle = neu("span", "rolle");
+          var band = neu("span", "band");
+          for (var d = 0; d <= 10; d++) band.append(neu("span", "", String(d % 10)));
+          rolle.append(band);
+          wrap.append(rolle);
+        } else {
+          wrap.append(neu("span", "fix", text[i] === " " ? " " : text[i]));
+        }
+      }
+      wrap.dataset.muster = muster;
+    }
+    var ziffern = 0;
+    for (var k = 0; k < text.length; k++) if (/\d/.test(text[k])) ziffern++;
+    var n = 0;
+    for (var j = 0; j < text.length; j++) {
+      if (/\d/.test(text[j])) {
+        var b = wrap.children[j].firstChild;
+        b.style.transitionDelay = sanfteBewegung ? "0ms" : ((ziffern - 1 - n) * 40) + "ms";
+        b.style.transform = "translateY(calc(" + (-parseInt(text[j], 10)) + " * var(--zh)))";
+        n++;
+      }
+    }
+  }
+
+  // Zeigt einen Betrag rollend an; bei gewöhnlichem Text (etwa "—") wird
+  // wieder auf schlichte Schrift zurückgeschaltet.
+  function zeigeGeld(knoten, text, rollend) {
+    if (rollend === false) {
+      if (knoten.classList.contains("rollzahl")) {
+        knoten.classList.remove("rollzahl");
+        delete knoten.dataset.muster;
+      }
+      knoten.textContent = text;
+      return;
+    }
+    if (!knoten.classList.contains("rollzahl")) {
+      knoten.classList.add("rollzahl");
+      knoten.textContent = "";
+      delete knoten.dataset.muster;
+    }
+    rollSetzen(knoten, text);
+  }
   function neu(tag, klasse, text) {
     var n = document.createElement(tag);
     if (klasse) n.className = klasse;
@@ -928,42 +1155,56 @@
     var svg = el("torte");
     svg.textContent = "";
     tortenStuecke = [];
-    var gr = 200, mitte = gr / 2, rA = 88, rI = 55;
+    var gr = 200, mitte = gr / 2, rA = 92, rI = 40, breite = 2.2;   // Lückenbreite in Bildpunkten
     svg.setAttribute("viewBox", "0 0 " + gr + " " + gr);
 
     var sichtbar = anteile.filter(function (a) { return a.wert > 0; });
     if (!sichtbar.length) {
       svg.append(svgKind("circle", { cx: mitte, cy: mitte, r: (rA + rI) / 2, fill: "none",
-        stroke: "var(--line)", "stroke-width": rA - rI }));
+        stroke: "rgba(255,255,255,.07)", "stroke-width": rA - rI }));
       var leer = svgKind("text", { class: "t-mitte", x: mitte, y: mitte + 4 });
       leer.textContent = "noch nichts erfasst";
       svg.append(leer);
       return;
     }
 
-    var luecke = sichtbar.length > 1 ? 2 / rA : 0;   // 2 px Abstand zwischen den Stücken
-    var winkel = 0;
+    // Die Stücke werden lückenlos gezeichnet; die Trennung entsteht danach,
+    // indem gerade Streifen fester Breite herausmaskiert werden. Nur so
+    // bleibt die Lücke außen wie innen gleich breit.
+    var maskeId = "luecken";
+    var defs = svgKind("defs", {});
+    var maske = svgKind("mask", { id: maskeId, maskUnits: "userSpaceOnUse", x: 0, y: 0, width: gr, height: gr });
+    maske.append(svgKind("rect", { x: 0, y: 0, width: gr, height: gr, fill: "white" }));
+
+    var winkel = 0, grenzen = [];
+    sichtbar.forEach(function (a) { grenzen.push(winkel); winkel += (a.wert / gesamt) * Math.PI * 2; });
+    if (sichtbar.length > 1) {
+      grenzen.forEach(function (w) {
+        maske.append(svgKind("line", {
+          x1: mitte + (rI - 2) * Math.sin(w), y1: mitte - (rI - 2) * Math.cos(w),
+          x2: mitte + (rA + 2) * Math.sin(w), y2: mitte - (rA + 2) * Math.cos(w),
+          stroke: "black", "stroke-width": breite, "stroke-linecap": "butt"
+        }));
+      });
+    }
+    defs.append(maske);
+    svg.append(defs);
+
+    var gruppe = svgKind("g", { mask: "url(#" + maskeId + ")" });
+    winkel = 0;
     sichtbar.forEach(function (a) {
       var spanne = (a.wert / gesamt) * Math.PI * 2;
-      var von = winkel + luecke / 2, bis = winkel + spanne - luecke / 2;
-      if (bis > von) {
-        var d = spanne >= Math.PI * 2 - 1e-9
-          ? ringPfad(mitte, mitte, rA, rI, 0, Math.PI) + ringPfad(mitte, mitte, rA, rI, Math.PI, Math.PI * 2)
-          : ringPfad(mitte, mitte, rA, rI, von, bis);
-        var pfad = svgKind("path", { class: "t-stueck f-k-" + a.id, d: d });
-        pfad.addEventListener("pointerenter", function () { hervorheben(a.id); });
-        pfad.addEventListener("pointerleave", function () { hervorheben(null); });
-        svg.append(pfad);
-        tortenStuecke.push({ id: a.id, pfad: pfad });
-      }
+      var d = spanne >= Math.PI * 2 - 1e-9
+        ? ringPfad(mitte, mitte, rA, rI, 0, Math.PI) + ringPfad(mitte, mitte, rA, rI, Math.PI, Math.PI * 2)
+        : ringPfad(mitte, mitte, rA, rI, winkel, winkel + spanne);
+      var pfad = svgKind("path", { class: "t-stueck f-k-" + a.id, d: d });
+      pfad.addEventListener("pointerenter", function () { hervorheben(a.id); });
+      pfad.addEventListener("pointerleave", function () { hervorheben(null); });
+      gruppe.append(pfad);
+      tortenStuecke.push({ id: a.id, pfad: pfad });
       winkel += spanne;
     });
-
-    var betrag = svgKind("text", { class: "t-mitte wert", x: mitte, y: mitte + 2 });
-    betrag.textContent = fmtEuroKurz(gesamt);
-    var wort = svgKind("text", { class: "t-mitte", x: mitte, y: mitte + 20 });
-    wort.textContent = "gesamt";
-    svg.append(betrag, wort);
+    svg.append(gruppe);
   }
 
   function zeigeAnlageklassen(gesamt) {
@@ -973,7 +1214,7 @@
     anteile.forEach(function (a) {
       var r = refs["k-" + a.id];
       var anteil = gesamt > 0 ? (a.wert / gesamt) * 100 : 0;
-      r.euro.textContent = fmtEuro(a.wert);
+      zeigeGeld(r.euro, fmtEuro(a.wert));
       r.proz.textContent = proz.format(anteil) + " %";
     });
     zeichneTorte(anteile, gesamt);
@@ -1057,21 +1298,21 @@
     var freiBesch = el("freiBeschriftung");
     if (!hatGuthaben) {
       freiWert.className = "wert null";
-      freiWert.textContent = "Bankguthaben eintragen";
+      zeigeGeld(freiWert, "Bankguthaben eintragen", false);
       freiBesch.textContent = "Zu verteilen";
     } else if (frei <= 0) {
       freiWert.className = "wert null";
-      freiWert.textContent = "Diesen Monat kein Zusatzinvestment.";
+      zeigeGeld(freiWert, "Diesen Monat kein Zusatzinvestment.", false);
       freiBesch.textContent = "Bankguthaben liegt unter dem Puffer";
     } else {
       freiWert.className = "wert";
-      freiWert.textContent = fmtEuroKurz(frei);
+      zeigeGeld(freiWert, fmtEuroKurz(frei));
       freiBesch.textContent = "Zu verteilen (auf volle 100 € aufgerundet)";
     }
 
-    el("kBasis").textContent = fmtEuroKurz(e.basis);
-    el("kVerplant").textContent = fmtEuroKurz(e.verplant);
-    el("kRest").textContent = fmtEuroKurz(e.rest);
+    zeigeGeld(el("kBasis"), fmtEuroKurz(e.basis));
+    zeigeGeld(el("kVerplant"), fmtEuroKurz(e.verplant));
+    zeigeGeld(el("kRest"), fmtEuroKurz(e.rest));
     el("kRest").parentElement.classList.toggle("leer", e.rest <= 0);
 
     // Restbegründung / ausgeschlossene Positionen
@@ -1116,8 +1357,10 @@
       else { r.fuell.className = "ueber"; r.fuell.style.left = "50%"; }
       r.fuell.style.width = breite + "%";
 
-      r.kauf.textContent = kaufBetrag > 0 ? "+ " + fmtEuroKurz(kaufBetrag) : "—";
-      r.kauf.className = "pos-kauf" + (kaufBetrag > 0 ? "" : " keiner");
+      // Erst die Klasse setzen, dann den Betrag: className zu überschreiben
+      // würde dem Feld die Rolleigenschaft wieder wegnehmen.
+      r.kauf.classList.toggle("keiner", kaufBetrag <= 0);
+      zeigeGeld(r.kauf, kaufBetrag > 0 ? "+ " + fmtEuroKurz(kaufBetrag) : "—", kaufBetrag > 0);
       if (document.activeElement !== r.input) {
         r.input.value = zahl2.format(zustand.werte[p.id] || 0);
       }
@@ -1151,12 +1394,12 @@
     var gesamt = e.basis + altSumme + beobSumme + bank;
     aktuellesGesamt = gesamt;
     aktuelleGruppen = anteile;
-    el("vGesamt").textContent = fmtEuro(gesamt);
+    tachoAuf(Math.round(gesamt * 100));
     VERMOEGEN_GRUPPEN.forEach(function (g) {
       var wert = anteile[g.id];
       var anteil = gesamt > 0 ? (wert / gesamt) * 100 : 0;
       var r = refs["v-" + g.id];
-      r.euro.textContent = fmtEuro(wert);
+      zeigeGeld(r.euro, fmtEuro(wert));
       r.proz.textContent = proz.format(anteil) + " %";
       r.segment.style.width = anteil + "%";
     });
@@ -1576,6 +1819,8 @@
 
   el("fassung").textContent = "Fassung " + FASSUNG;
 
+  tachoBauen();
+  tachoSetzen(0);
   aktualisieren();
   zeigeDelta();
   zeigeSpeicherHinweis();
