@@ -59,6 +59,8 @@
   main { max-width: 640px; margin: 0 auto; }
   h1 { font-size: 22px; margin: 0 0 2px; letter-spacing: -0.01em; }
   h2 { font-size: 15px; margin: 0 0 10px; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-mute); }
+  h3.unterkopf { font-size: 12.5px; margin: 20px 0 6px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; }
+  h3.unterkopf:first-child { margin-top: 0; }
   .sub { color: var(--ink-faint); font-size: 13px; margin: 0 0 18px; }
 
   .card {
@@ -135,6 +137,8 @@
   .feld { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 0; }
   .feld + .feld { border-top: 1px solid var(--line); }
   .feld label { font-size: 15px; color: var(--ink-mute); flex: 1 1 auto; }
+  .feld label .gew-rate { display: block; font-size: 12.5px; color: var(--ink-faint); margin-top: 1px; }
+  .feld label .gew-rate.ohne { font-style: italic; }
   .eingabe { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
   input[type=text] {
     font: inherit;
@@ -218,10 +222,6 @@
   .balken i.unter { background: var(--unter); }
   .balken i.ueber { background: var(--ueber); }
 
-  .block { border: 1px solid rgba(255,255,255,.07); border-radius: 16px; padding: 2px 12px 4px; margin: 12px 0; background: rgba(0,0,0,.18); }
-  .block-kopf { padding: 10px 0 6px; font-size: 12.5px; color: var(--ink-mute); }
-  .block-kopf b { display: block; color: var(--ink); font-size: 13.5px; margin-bottom: 1px; }
-  .block .pos:first-of-type { border-top: 1px solid var(--line); }
 
   .nebenrechnung { opacity: .72; }
   .nebenrechnung .card { background: transparent; border-style: dashed; }
@@ -481,8 +481,24 @@
   </section>
 
   <details id="gewichteBox">
-    <summary>Zielgewichte anpassen</summary>
+    <summary>Zielgewichte und Sparplan</summary>
     <div class="card">
+      <h3 class="unterkopf">Sparplan für die nächsten zwölf Monate</h3>
+      <p class="notiz" style="margin:0 0 2px">
+        Trag deine monatliche Sparrate ein und tippe auf „Sparraten berechnen“. Aufgeteilt
+        wird sie so, dass das Depot nach zwölf Sparraten möglichst nah an den Zielgewichten
+        liegt — nicht stur nach Prozenten. Was schon über seinem Soll liegt, bekommt für
+        dieses Jahr nichts. Die Raten laufen in Schritten von 5 € und beginnen bei 10 €;
+        wer darunter landete, fällt heraus und sein Anteil geht an die übrigen.
+      </p>
+      <div class="feld">
+        <label for="sparrate">Monatliche Sparrate</label>
+        <span class="eingabe"><input id="sparrate" type="text" inputmode="decimal"><span class="einheit">€</span></span>
+      </div>
+      <button type="button" class="knopf-gross" id="sparplanKnopf">Sparraten berechnen</button>
+      <p class="notiz" id="sparplanStand"></p>
+
+      <h3 class="unterkopf">Zielgewichte</h3>
       <div id="gewichte"></div>
       <p class="notiz" id="gewichteSumme"></p>
     </div>
@@ -509,8 +525,11 @@
 (function (global) {
   "use strict";
 
-  var SCHRITT = 50;      // alle Beträge auf 50 € gerundet
-  var MIN_KAUF = 200;    // Mindestbetrag pro Order
+  var SCHRITT = 50;          // alle Kaufbeträge auf 50 € gerundet
+  var MIN_KAUF = 200;        // Mindestbetrag pro Order
+  var SPARPLAN_MONATE = 12;  // der Sparplan wird für zwölf Monate im Voraus gerechnet
+  var SPARPLAN_SCHRITT = 5;  // Sparraten auf volle 5 €
+  var SPARPLAN_MIN = 10;     // darunter lohnt kein eigener Sparplan
 
   /**
    * Freier Betrag am 15.:
@@ -528,42 +547,42 @@
   }
 
   /**
-   * Verteilt den Betrag proportional zu den Lücken, in Schritten von 50 €.
-   * Einheiten mit mehreren Mitgliedern (Gold+Silber) laufen in Schritten von
-   * 50 € × Mitgliederzahl, damit die Hälften glatt bleiben.
-   * Rest wird nach dem Größte-Reste-Verfahren vergeben.
+   * Teilt `schritte` ganze Einheiten proportional zu den Schlüsselzahlen auf.
+   * Was beim Abrunden übrig bleibt, geht nach dem Größte-Reste-Verfahren an
+   * die Stellen mit dem größten abgeschnittenen Rest; bei Gleichstand
+   * gewinnt der größere Schlüssel.
    */
-  function verteileProportional(betrag, kandidaten) {
-    var gesamtLuecke = kandidaten.reduce(function (s, e) { return s + e.luecke; }, 0);
-    var gesamtSchritte = Math.floor(betrag / SCHRITT);
-    var stufe = kandidaten.map(function (e) { return e.schritt / SCHRITT; });
-    var ideal = kandidaten.map(function (e) { return gesamtSchritte * e.luecke / gesamtLuecke; });
-    var zu = ideal.map(function (v, i) { return Math.floor(v / stufe[i]) * stufe[i]; });
-    var rest = gesamtSchritte - zu.reduce(function (a, b) { return a + b; }, 0);
+  function groessteReste(schritte, schluessel) {
+    var leer = schluessel.map(function () { return 0; });
+    var summe = schluessel.reduce(function (s, v) { return s + v; }, 0);
+    if (!(summe > 0) || schritte <= 0) return leer;
 
-    var reihenfolge = kandidaten.map(function (_, i) { return i; }).sort(function (a, b) {
+    var ideal = schluessel.map(function (v) { return schritte * v / summe; });
+    var zu = ideal.map(function (v) { return Math.floor(v); });
+    var rest = schritte - zu.reduce(function (a, b) { return a + b; }, 0);
+
+    var reihenfolge = schluessel.map(function (_, i) { return i; }).sort(function (a, b) {
       var ra = ideal[a] - zu[a], rb = ideal[b] - zu[b];
       if (Math.abs(ra - rb) > 1e-9) return rb - ra;
-      return kandidaten[b].luecke - kandidaten[a].luecke;
+      return schluessel[b] - schluessel[a];
     });
+    for (var n = 0; n < reihenfolge.length && rest > 0; n++) { zu[reihenfolge[n]] += 1; rest -= 1; }
+    return zu;
+  }
 
-    var fortschritt = true;
-    while (rest > 0 && fortschritt) {
-      fortschritt = false;
-      for (var n = 0; n < reihenfolge.length && rest > 0; n++) {
-        var i = reihenfolge[n];
-        if (rest >= stufe[i]) { zu[i] += stufe[i]; rest -= stufe[i]; fortschritt = true; }
-      }
-    }
-
+  /** Verteilt den Betrag proportional zu den Lücken, in Schritten von 50 €. */
+  function verteileProportional(betrag, kandidaten) {
+    var zu = groessteReste(Math.floor(betrag / SCHRITT),
+                           kandidaten.map(function (p) { return p.luecke; }));
     var ergebnis = new Map();
-    kandidaten.forEach(function (e, i) { ergebnis.set(e.key, zu[i] * SCHRITT); });
+    kandidaten.forEach(function (p, i) { ergebnis.set(p.id, zu[i] * SCHRITT); });
     return ergebnis;
   }
 
   /**
-   * Hauptrechnung.
-   * positionen: [{ id, name, gewicht (Prozent), wert (Euro), block (Gruppenname|null) }]
+   * Hauptrechnung für den Zusatzkauf am 15.
+   * positionen: [{ id, name, gewicht (Prozent), wert (Euro) }]
+   * Jede Position steht für sich: eigener Sollwert, eigene Lücke, eigene Order.
    * Rückgabe enthält Basis, Sollwerte, Lücken, Kaufbeträge je Position und Rest.
    */
   function berechneVerteilung(betrag, positionen) {
@@ -572,67 +591,46 @@
     var basis = positionen.reduce(function (s, p) { return s + (Number(p.wert) || 0); }, 0);
     var basisNachKauf = basis + betrag;
 
-    // Positionen zu Einheiten bündeln (Gold + Silber = eine Einheit)
-    var nachKey = new Map();
-    var einheiten = [];
-    positionen.forEach(function (p) {
-      var key = p.block || p.id;
-      var e = nachKey.get(key);
-      if (!e) {
-        e = { key: key, block: p.block || null, mitglieder: [], gewicht: 0, wert: 0 };
-        nachKey.set(key, e);
-        einheiten.push(e);
-      }
-      e.mitglieder.push(p);
-      e.gewicht += Number(p.gewicht) || 0;
-      e.wert += Number(p.wert) || 0;
-    });
-
-    einheiten.forEach(function (e) {
-      e.orders = e.mitglieder.length;                 // Block belegt zwei Orders
-      e.schritt = SCHRITT * e.orders;                 // Block auf volle 100 €
-      e.min = MIN_KAUF * e.orders;                    // Block braucht mindestens 400 €
-      e.soll = (e.gewicht / 100) * basisNachKauf;
-      e.luecke = Math.max(0, e.soll - e.wert);
+    var posten = positionen.map(function (p) {
+      var wert = Number(p.wert) || 0;
+      var gewicht = Number(p.gewicht) || 0;
+      var soll = (gewicht / 100) * basisNachKauf;
+      return {
+        id: p.id, name: p.name, gewicht: gewicht, wert: wert,
+        soll: soll, luecke: Math.max(0, soll - wert), min: MIN_KAUF, kauf: 0
+      };
     });
 
     var maxOrders = Math.floor(betrag / MIN_KAUF);
-    var kandidaten = einheiten.filter(function (e) { return e.luecke > 0; })
-                              .sort(function (a, b) { return b.luecke - a.luecke; });
+    var kandidaten = posten.filter(function (p) { return p.luecke > 0; })
+                           .sort(function (a, b) { return b.luecke - a.luecke; });
     var ausgeschlossen = [];
 
     // Regel 7: mehr Kandidaten als bezahlbare Orders -> größte Lücken gewinnen
-    var orderBedarf = function () {
-      return kandidaten.reduce(function (s, e) { return s + e.orders; }, 0);
-    };
-    while (kandidaten.length && orderBedarf() > maxOrders) {
-      ausgeschlossen.push({ einheit: kandidaten.pop(), grund: "orders" });
+    while (kandidaten.length > maxOrders) {
+      ausgeschlossen.push({ posten: kandidaten.pop(), grund: "orders" });
     }
 
     // Regel 6: kleinste Zuteilung unter dem Mindestbetrag fliegt raus, dann neu verteilen
     var zuteilung = new Map();
     while (kandidaten.length) {
       zuteilung = verteileProportional(betrag, kandidaten);
-      var verstoesse = kandidaten.filter(function (e) {
-        return zuteilung.get(e.key) + 1e-9 < e.min;
+      var verstoesse = kandidaten.filter(function (p) {
+        return zuteilung.get(p.id) + 1e-9 < MIN_KAUF;
       });
       if (!verstoesse.length) break;
       var raus = verstoesse[verstoesse.length - 1];   // kleinste Lücke unter den Verstößen
-      kandidaten = kandidaten.filter(function (e) { return e !== raus; });
-      ausgeschlossen.push({ einheit: raus, grund: "min" });
+      kandidaten = kandidaten.filter(function (p) { return p !== raus; });
+      ausgeschlossen.push({ posten: raus, grund: "min" });
       zuteilung = new Map();
     }
 
-    // Ergebnis je Position; Blockbetrag exakt halbieren
     var kaufJePosition = new Map();
     var verplant = 0;
-    einheiten.forEach(function (e) {
-      var betragEinheit = zuteilung.get(e.key) || 0;
-      e.kauf = betragEinheit;
-      verplant += betragEinheit;
-      e.mitglieder.forEach(function (p) {
-        kaufJePosition.set(p.id, betragEinheit / e.mitglieder.length);
-      });
+    posten.forEach(function (p) {
+      p.kauf = zuteilung.get(p.id) || 0;
+      verplant += p.kauf;
+      kaufJePosition.set(p.id, p.kauf);
     });
 
     return {
@@ -640,7 +638,7 @@
       basis: basis,
       basisNachKauf: basisNachKauf,
       maxOrders: maxOrders,
-      einheiten: einheiten,
+      positionen: posten,
       kauf: kaufJePosition,
       verplant: verplant,
       rest: betrag - verplant,
@@ -648,11 +646,99 @@
     };
   }
 
+  /**
+   * Sparplan für die nächsten zwölf Monate.
+   * Die Zielgewichte stehen fest; aufgeteilt wird die monatliche Sparrate —
+   * und zwar so, dass das Depot nach zwölf Sparraten möglichst nah an den
+   * Zielgewichten liegt. Maßstab ist deshalb nicht das Zielgewicht selbst,
+   * sondern die Lücke zum Sollwert am Ende des Jahres.
+   *
+   * Positionen, die schon jetzt über ihrem Zwölf-Monats-Soll liegen, bekommen
+   * null — sie werden nicht verkauft, sie wachsen nur nicht weiter mit, bis
+   * die anderen aufgeholt haben. Liegt ausnahmsweise alles auf oder über dem
+   * Soll, wird schlicht nach Zielgewicht verteilt.
+   *
+   * Die Raten laufen in Schritten von 5 € und liegen entweder bei null oder
+   * bei mindestens 10 € — ein Sparplan über 3 € wäre Unfug. Wer darunter
+   * landet, fällt heraus und sein Anteil wird unter den übrigen neu verteilt.
+   * Die Plansumme ist die eingetragene Sparrate, auf volle 5 € abgerundet,
+   * damit das Budget nie überschritten wird; die Raten ergeben sie exakt.
+   */
+  function berechneSparplan(monatsrate, positionen) {
+    var eingetragen = Math.max(0, Number(monatsrate) || 0);
+    var monat = Math.floor(eingetragen / SPARPLAN_SCHRITT) * SPARPLAN_SCHRITT;
+    var jahresbetrag = monat * SPARPLAN_MONATE;
+
+    var basis = positionen.reduce(function (s, p) { return s + (Number(p.wert) || 0); }, 0);
+    var zielVermoegen = basis + jahresbetrag;
+
+    var posten = positionen.map(function (p) {
+      var wert = Number(p.wert) || 0;
+      var gewicht = Number(p.gewicht) || 0;
+      var soll = (gewicht / 100) * zielVermoegen;
+      return {
+        id: p.id, name: p.name, gewicht: gewicht, wert: wert,
+        soll: soll, luecke: Math.max(0, soll - wert), rate: 0
+      };
+    });
+
+    var nachLuecke = posten.reduce(function (s, p) { return s + p.luecke; }, 0) > 0;
+    var masstab = function (p) { return nachLuecke ? p.luecke : p.gewicht; };
+
+    var kandidaten = posten.filter(function (p) { return masstab(p) > 0; })
+                           .sort(function (a, b) { return masstab(b) - masstab(a); });
+    var ausgeschlossen = [];
+    var zuteilung = new Map();
+
+    // Wer unter der Mindestrate landet, fliegt raus; danach neu verteilen.
+    while (kandidaten.length) {
+      var zu = groessteReste(Math.floor(monat / SPARPLAN_SCHRITT), kandidaten.map(masstab));
+      zuteilung = new Map();
+      kandidaten.forEach(function (p, i) { zuteilung.set(p.id, zu[i] * SPARPLAN_SCHRITT); });
+
+      var verstoesse = kandidaten.filter(function (p) { return zuteilung.get(p.id) < SPARPLAN_MIN; });
+      if (!verstoesse.length) break;
+      var raus = verstoesse[verstoesse.length - 1];   // kleinster Maßstab unter den Verstößen
+      kandidaten = kandidaten.filter(function (p) { return p !== raus; });
+      ausgeschlossen.push(raus);
+      zuteilung = new Map();
+    }
+
+    var raten = new Map();
+    var verplant = 0;
+    posten.forEach(function (p) {
+      p.rate = zuteilung.get(p.id) || 0;
+      verplant += p.rate;
+      raten.set(p.id, p.rate);
+    });
+
+    return {
+      eingetragen: eingetragen,
+      monatsrate: monat,
+      monate: SPARPLAN_MONATE,
+      schritt: SPARPLAN_SCHRITT,
+      min: SPARPLAN_MIN,
+      jahresbetrag: jahresbetrag,
+      basis: basis,
+      zielVermoegen: zielVermoegen,
+      nachLuecke: nachLuecke,
+      positionen: posten,
+      raten: raten,
+      verplant: verplant,
+      rest: monat - verplant,
+      ausgeschlossen: ausgeschlossen
+    };
+  }
+
   global.Zuflussverteiler = {
     SCHRITT: SCHRITT,
     MIN_KAUF: MIN_KAUF,
+    SPARPLAN_MONATE: SPARPLAN_MONATE,
+    SPARPLAN_SCHRITT: SPARPLAN_SCHRITT,
+    SPARPLAN_MIN: SPARPLAN_MIN,
     berechneFreienBetrag: berechneFreienBetrag,
-    berechneVerteilung: berechneVerteilung
+    berechneVerteilung: berechneVerteilung,
+    berechneSparplan: berechneSparplan
   };
 })(typeof globalThis !== "undefined" ? globalThis : this);
 /* #endregion verteilung */
@@ -665,22 +751,25 @@
 
   // Namen und Zielgewichte sind fest hinterlegt, Beträge nicht: Die Seite
   // startet leer und zeigt nur, was selbst eingetragen und gespeichert wurde.
-  // Die Zielgewichte sind nicht von Hand eingetragen, sondern ergeben sich aus
-  // den Sparraten: jede Position bekommt ihren Anteil an der Sparsumme.
-  // 850 € im Monat, davon 400 € in den World => 47,059 %.
+  // Die Zielgewichte stehen fest und bleiben stehen — glatte Zahlen, die sich
+  // zu 100 % addieren: 90 % Aktien, 5 % Edelmetalle, 5 % Krypto. Umgekehrt
+  // ergeben sich die Sparraten aus ihnen (siehe "Zielgewichte und Sparplan").
   var STANDARD_POSITIONEN = [
-    { id: "world",   name: "Core MSCI World",       wert: 0, block: null,          sparrate: 400 },
-    { id: "em",      name: "MSCI Emerging Markets", wert: 0, block: null,          sparrate: 150 },
-    { id: "wsc",     name: "MSCI World Small Cap",  wert: 0, block: null,          sparrate: 75 },
-    { id: "emsc",    name: "MSCI EM Small Cap",     wert: 0, block: null,          sparrate: 50 },
-    { id: "europe",  name: "Core Stoxx Europe 600", wert: 0, block: null,          sparrate: 50 },
-    { id: "africa",  name: "MSCI Africa Top 50",    wert: 0, block: null,          sparrate: 25 },
-    { id: "gold",    name: "Gold",                  wert: 0, block: "edelmetalle", sparrate: 25 },
-    { id: "silber",  name: "Silber",                wert: 0, block: "edelmetalle", sparrate: 25 },
-    { id: "btc",     name: "Bitcoin",               wert: 0, block: null,          sparrate: 50 }
+    { id: "world",   name: "Core MSCI World",       wert: 0, gewicht: 50 },
+    { id: "em",      name: "MSCI Emerging Markets", wert: 0, gewicht: 20 },
+    { id: "wsc",     name: "MSCI World Small Cap",  wert: 0, gewicht: 7.5 },
+    { id: "emsc",    name: "MSCI EM Small Cap",     wert: 0, gewicht: 5 },
+    { id: "europe",  name: "Core Stoxx Europe 600", wert: 0, gewicht: 5 },
+    { id: "africa",  name: "MSCI Africa Top 50",    wert: 0, gewicht: 2.5 },
+    { id: "gold",    name: "Gold",                  wert: 0, gewicht: 2.5 },
+    { id: "silber",  name: "Silber",                wert: 0, gewicht: 2.5 },
+    { id: "btc",     name: "Bitcoin",               wert: 0, gewicht: 5 }
   ];
-  var SPARSUMME = STANDARD_POSITIONEN.reduce(function (s, p) { return s + p.sparrate; }, 0);
-  STANDARD_POSITIONEN.forEach(function (p) { p.gewicht = p.sparrate / SPARSUMME * 100; });
+  // Stand der hinterlegten Zielgewichte. Ändert sich hier oben etwas, bekommt
+  // dieser Wert ein neues Datum — dann übernimmt ein gespeicherter Stand die
+  // neuen Gewichte beim nächsten Öffnen. Von Hand gesetzte Prozentzahlen
+  // bleiben dabei auf der Strecke; solange der Stand gleich bleibt, nicht.
+  var GEWICHTE_STAND = "2026-09-10";
   var STANDARD_ALTLASTEN = [
     { id: "wit",   name: "World Information Technology", wert: 0 },
     { id: "aibd",  name: "AI & Big Data",                wert: 0 },
@@ -693,7 +782,7 @@
   var STANDARD_PUFFER = 10000;
   var SPEICHER = "zuflussverteiler.v1";
   var INVEST_TAG = 15;
-  var FASSUNG = "2026-08-06 j";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+  var FASSUNG = "2026-09-10 b";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
 
   var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -726,7 +815,10 @@
       beobachtet: STANDARD_BEOBACHTET.reduce(function (o, p) { o[p.id] = p.wert; return o; }, {}),
       verlauf: [],
       gespeichertAm: null,
-      sparsumme: SPARSUMME   // woraus die Zielgewichte gerechnet sind
+      gewichteStand: GEWICHTE_STAND,
+      sparrate: null,        // monatliche Sparrate, einmal im Jahr neu gesetzt
+      sparplan: null,        // { id: Euro im Monat } — Ergebnis der Aufteilung
+      sparplanAm: null       // wann der Sparplan zuletzt gerechnet wurde
     };
   }
 
@@ -751,6 +843,16 @@
     else if (g.guthaben === null) zustand.guthaben = null;
     if (typeof g.puffer === "number" && isFinite(g.puffer)) zustand.puffer = g.puffer;
     if (typeof g.gespeichertAm === "string") zustand.gespeichertAm = g.gespeichertAm;
+    if (typeof g.sparrate === "number" && isFinite(g.sparrate)) zustand.sparrate = g.sparrate;
+    if (typeof g.sparplanAm === "string") zustand.sparplanAm = g.sparplanAm;
+    if (g.sparplan && typeof g.sparplan === "object") {
+      var plan = {};
+      STANDARD_POSITIONEN.forEach(function (p) {
+        var r = g.sparplan[p.id];
+        if (typeof r === "number" && isFinite(r)) plan[p.id] = r;
+      });
+      if (Object.keys(plan).length) zustand.sparplan = plan;
+    }
     ["werte", "gewichte", "altlasten", "beobachtet"].forEach(function (feld) {
       if (g[feld] && typeof g[feld] === "object") {
         Object.keys(zustand[feld]).forEach(function (id) {
@@ -766,20 +868,9 @@
         .sort(function (a, b) { return a.datum < b.datum ? -1 : 1; });
     }
 
-    // Bitcoin lag früher unter "Beobachten" und wird jetzt bespart. Ein alter
-    // Stand bringt den Wert dort mit — der wandert einmalig herüber.
-    var alterBitcoin = g.beobachtet && g.beobachtet.btc;
-    var hatNeuenBitcoin = g.werte && typeof g.werte.btc === "number";
-    if (typeof alterBitcoin === "number" && isFinite(alterBitcoin) && !hatNeuenBitcoin) {
-      zustand.werte.btc = alterBitcoin;
-    }
-
-    // Die Zielgewichte hängen an den Sparraten. Ändert sich eine Sparrate und
-    // damit die Sparsumme, stammen gespeicherte Gewichte aus einer anderen
-    // Aufteilung — sie summierten sich nur zur alten Sparsumme auf 100 %. Dann
-    // gilt die neue Aufteilung; von Hand gesetzte Prozentzahlen aus der alten
-    // Zeit gehen dabei verloren.
-    if (g.sparsumme !== SPARSUMME) {
+    // Sind im Programm neue Zielgewichte hinterlegt, gelten die neuen — sonst
+    // hielte ein gespeicherter Stand die alte Aufteilung für immer fest.
+    if (g.gewichteStand !== GEWICHTE_STAND) {
       STANDARD_POSITIONEN.forEach(function (p) { zustand.gewichte[p.id] = p.gewicht; });
     }
     return true;
@@ -1048,24 +1139,7 @@
   }
 
   var liste = el("positionen");
-  var blockBox = null;
-  STANDARD_POSITIONEN.forEach(function (p) {
-    if (p.block) {
-      if (!blockBox) {
-        blockBox = neu("div", "block");
-        var kopf = neu("div", "block-kopf");
-        var links = neu("b", "", "Edelmetalle · Block");
-        var rechts = neu("span", "", "");
-        kopf.append(links, rechts);
-        blockBox.append(kopf);
-        refs.blockKopf = rechts;
-        liste.append(blockBox);
-      }
-      blockBox.append(positionsZeile(p));
-    } else {
-      liste.append(positionsZeile(p));
-    }
-  });
+  STANDARD_POSITIONEN.forEach(function (p) { liste.append(positionsZeile(p)); });
 
   // Nebengruppen (Altlasten, Beobachten): nur Name und Wert, keine Rechnung
   function baueNebengruppe(containerId, definitionen, feld) {
@@ -1253,6 +1327,8 @@
     var feld = neu("div", "feld");
     var lab = neu("label", "", p.name);
     lab.setAttribute("for", "gew-" + p.id);
+    var rate = neu("small", "gew-rate", "");
+    lab.append(rate);
     var eingabe = neu("span", "eingabe");
     var input = geldFeld(zustand.gewichte[p.id], function (v) {
       zustand.gewichte[p.id] = v == null ? 0 : v; einstellungGeaendert();
@@ -1265,7 +1341,61 @@
     eingabe.append(input, neu("span", "einheit", "%"));
     feld.append(lab, eingabe);
     gewListe.append(feld);
-    refs["gew-" + p.id] = { input: input };
+    refs["gew-" + p.id] = { input: input, rate: rate };
+  });
+
+  // ---- Sparplan ---------------------------------------------------------
+  // Einmal im Jahr, nach dem letzten Invest im Dezember: Sparrate eintragen,
+  // Knopf drücken. Das Ergebnis bleibt danach zwölf Monate stehen — es rechnet
+  // sich nicht bei jeder Wertänderung neu, sonst wäre es kein Plan.
+  var sparrateFeld = geldFeld(zustand.sparrate, function (v) {
+    zustand.sparrate = v; markiereUngespeichert();
+  });
+  el("sparrate").replaceWith(sparrateFeld); sparrateFeld.id = "sparrate";
+
+  function zeigeSparplan() {
+    var plan = zustand.sparplan;
+    STANDARD_POSITIONEN.forEach(function (p) {
+      var r = refs["gew-" + p.id];
+      var betrag = plan ? (plan[p.id] || 0) : 0;
+      r.rate.textContent = !plan ? "" : (betrag > 0 ? fmtEuroKurz(betrag) + " im Monat" : "dieses Jahr kein Sparplan");
+      r.rate.classList.toggle("ohne", !!plan && betrag <= 0);
+    });
+
+    var stand = el("sparplanStand");
+    if (!plan) {
+      stand.textContent = "Noch kein Sparplan berechnet.";
+      return;
+    }
+    var summe = 0, bedient = 0;
+    STANDARD_POSITIONEN.forEach(function (p) {
+      var betrag = plan[p.id] || 0;
+      summe += betrag;
+      if (betrag > 0) bedient++;
+    });
+    var datum = zustand.sparplanAm ? new Date(zustand.sparplanAm) : null;
+    var text =
+      (datum && !isNaN(datum.getTime()) ? "Berechnet am " + datum.toLocaleDateString("de-DE") + " · " : "") +
+      fmtEuroKurz(summe) + " im Monat auf " + bedient +
+      (bedient === 1 ? " Position" : " Positionen") + " · gilt für zwölf Monate.";
+    var offen = (zustand.sparrate || 0) - summe;
+    if (offen > 0) {
+      text += " " + fmtEuroKurz(offen) + " bleiben liegen — eine Sparrate braucht mindestens " +
+        fmtEuroKurz(ZV.SPARPLAN_MIN) + ".";
+    }
+    stand.textContent = text;
+  }
+
+  el("sparplanKnopf").addEventListener("click", function () {
+    var plan = ZV.berechneSparplan(zustand.sparrate || 0, zielPositionen());
+    var raten = {};
+    plan.positionen.forEach(function (p) { raten[p.id] = p.rate; });
+    zustand.sparplan = raten;
+    zustand.sparplanAm = new Date().toISOString();
+    zustand.sparrate = plan.monatsrate;
+    sparrateFeld.value = zahl2.format(plan.monatsrate);
+    zeigeSparplan();
+    markiereUngespeichert();
   });
 
   // ---- Datum-Hinweis ----------------------------------------------------
@@ -1307,10 +1437,19 @@
   }
 
   // ---- Rechnen und anzeigen --------------------------------------------
-  function aktualisieren() {
-    var positionen = STANDARD_POSITIONEN.map(function (p) {
-      return { id: p.id, name: p.name, gewicht: zustand.gewichte[p.id] || 0, wert: zustand.werte[p.id] || 0, block: p.block };
+  // Die neun besparten Positionen, so wie die Rechenlogik sie erwartet.
+  function zielPositionen() {
+    return STANDARD_POSITIONEN.map(function (p) {
+      return {
+        id: p.id, name: p.name,
+        gewicht: zustand.gewichte[p.id] || 0,
+        wert: zustand.werte[p.id] || 0
+      };
     });
+  }
+
+  function aktualisieren() {
+    var positionen = zielPositionen();
 
     var hatGuthaben = zustand.guthaben != null;
     zeigeAmpel(zustand.guthaben, zustand.puffer || 0);
@@ -1349,10 +1488,10 @@
     if (e.verplant > 0 && e.ausgeschlossen.length) {
       var namen = e.ausgeschlossen
         .slice()
-        .sort(function (a, b) { return b.einheit.luecke - a.einheit.luecke; })
+        .sort(function (a, b) { return b.posten.luecke - a.posten.luecke; })
         .map(function (a) {
-          var n = a.einheit.block === "edelmetalle" ? "Edelmetalle" : a.einheit.mitglieder[0].name;
-          return n + (a.grund === "orders" ? " (kein Budget mehr)" : " (Anteil unter " + fmtEuroKurz(a.einheit.min) + ")");
+          return a.posten.name +
+            (a.grund === "orders" ? " (kein Budget mehr)" : " (Anteil unter " + fmtEuroKurz(a.posten.min) + ")");
         });
       teile.push("Diesmal übersprungen: " + namen.join(", ") + ".");
     }
@@ -1389,15 +1528,6 @@
         r.input.value = zahl2.format(zustand.werte[p.id] || 0);
       }
     });
-
-    // Blockkopf
-    var block = e.einheiten.filter(function (u) { return u.block === "edelmetalle"; })[0];
-    if (block && refs.blockKopf) {
-      var anteil = e.basis > 0 ? (block.wert / e.basis) * 100 : 0;
-      refs.blockKopf.textContent =
-        "Ziel " + prozZiel.format(block.gewicht) + " % · jetzt " + proz.format(anteil) + " % · " +
-        (block.kauf > 0 ? "Kauf " + fmtEuroKurz(block.kauf) + " (je Hälfte " + fmtEuroKurz(block.kauf / 2) + ")" : "kein Kauf");
-    }
 
     // Nebengruppen
     function zeigeGruppe(definitionen, feld, summeId) {
@@ -1753,6 +1883,8 @@
     STANDARD_BEOBACHTET.forEach(function (a) {
       refs["beobachtet-" + a.id].input.value = zahl2.format(zustand.beobachtet[a.id]);
     });
+    sparrateFeld.value = zustand.sparrate == null ? "" : zahl2.format(zustand.sparrate);
+    zeigeSparplan();
   }
 
   // ---- Anzeige rund ums Speichern ---------------------------------------
@@ -1845,6 +1977,7 @@
 
   tachoBauen();
   tachoSetzen(0);
+  zeigeSparplan();
   aktualisieren();
   zeigeDelta();
   zeigeSpeicherHinweis();
