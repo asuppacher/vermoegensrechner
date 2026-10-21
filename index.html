@@ -39,6 +39,7 @@
     --g-alt: #e66767;
     --g-beob: #008300;
     --g-bank: #3987e5;
+    --g-vors: #8a9630;
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -154,7 +155,50 @@
   }
   input[type=text]:focus { outline: 2px solid color-mix(in srgb, var(--gut) 70%, transparent); outline-offset: 1px; }
   input.schmal { width: 6em; }
+  input.breit { width: 100%; text-align: left; font-variant-numeric: normal; }
   .einheit { color: var(--ink-faint); font-size: 14px; width: 1.1em; }
+
+  select {
+    font: inherit; font-size: 14px;
+    padding: 9px 10px;
+    border: 1px solid rgba(0,0,0,.4);
+    border-radius: 13px;
+    background: rgba(0,0,0,.32);
+    color: var(--ink);
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.5);
+    -webkit-appearance: none; appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-faint) 50%),
+                      linear-gradient(135deg, var(--ink-faint) 50%, transparent 50%);
+    background-position: right 14px center, right 9px center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 28px;
+  }
+  select:focus { outline: 2px solid color-mix(in srgb, var(--gut) 70%, transparent); outline-offset: 1px; }
+
+  /* Positionen ändern */
+  .asset-zeile { padding: 11px 0; border-top: 1px solid var(--line); }
+  .asset-zeile:first-child { border-top: none; }
+  .asset-kopf { display: flex; align-items: center; gap: 8px; }
+  .asset-kopf input { flex: 1 1 auto; min-width: 0; }
+  .asset-wahl { display: flex; gap: 8px; margin-top: 7px; }
+  .asset-wahl select { flex: 1 1 0; min-width: 0; }
+  .asset-weg {
+    flex: 0 0 auto; padding: 8px 11px; font-size: 15px; line-height: 1;
+    color: var(--ink-faint); border-color: var(--line); background: transparent;
+  }
+  .asset-weg:hover, .asset-weg:focus-visible { color: var(--warn); border-color: var(--warn); }
+
+  /* Verlaufsknopf an jeder Position */
+  .pos-verlauf {
+    flex: 0 0 auto; padding: 5px 7px; line-height: 0;
+    border-color: transparent; background: transparent; color: var(--ink-faint);
+  }
+  .pos-verlauf svg { width: 17px; height: 13px; display: block; }
+  .pos-verlauf:hover, .pos-verlauf:focus-visible { color: var(--ink); border-color: var(--line); }
+  .v-auswahl { padding-top: 0; }
+  .v-auswahl select { max-width: 15em; }
+  .vl-vergleich { fill: none; stroke: var(--ink-faint); stroke-width: 1.6; stroke-dasharray: 5 4; opacity: .75; }
 
   /* Ampelrahmen um den Kasten mit dem Bankguthaben */
   .puffer-kasten {
@@ -306,6 +350,7 @@
   .f-alt { background: var(--g-alt); }
   .f-beob { background: var(--g-beob); }
   .f-bank { background: var(--g-bank); }
+  .f-vors { background: var(--g-vors); }
 
   details { margin-bottom: 14px; }
   summary {
@@ -416,11 +461,16 @@
       <button type="button" id="verlaufSchliessen">Schließen</button>
     </div>
     <div class="d-koerper">
+      <div class="feld v-auswahl">
+        <label for="verlaufAuswahl">Zeigen</label>
+        <span class="eingabe"><select id="verlaufAuswahl"></select></span>
+      </div>
       <div class="kacheln" id="verlaufKacheln"></div>
       <div class="verlauf-flaeche" id="verlaufFlaeche">
         <svg id="verlaufBild" role="img" aria-label="Verlauf des Gesamtvermögens"></svg>
         <div class="v-tooltip" id="verlaufTooltip"></div>
       </div>
+      <p class="notiz" id="verlaufLegende"></p>
       <div id="verlaufTabelle"></div>
       <p class="notiz" id="verlaufNotiz"></p>
     </div>
@@ -466,8 +516,8 @@
     <div class="card">
       <h2>Altlasten (werden abgebaut)</h2>
       <p class="notiz" style="margin:-4px 0 6px">Zählen nicht zur Basis und bekommen kein Geld.</p>
-      <div id="altlasten"></div>
-      <div class="summe-zeile"><span>Summe</span><span id="altSumme">—</span></div>
+      <div id="g-altlast"></div>
+      <div class="summe-zeile"><span>Summe</span><span id="s-altlast">—</span></div>
     </div>
   </section>
 
@@ -475,8 +525,18 @@
     <div class="card">
       <h2>Beobachten (bleibt liegen)</h2>
       <p class="notiz" style="margin:-4px 0 6px">Kein Zielgewicht, keine Käufe, nicht in der Basis.</p>
-      <div id="beobachtet"></div>
-      <div class="summe-zeile"><span>Summe</span><span id="beobSumme">—</span></div>
+      <div id="g-beobachtet"></div>
+      <div class="summe-zeile"><span>Summe</span><span id="s-beobachtet">—</span></div>
+    </div>
+  </section>
+
+  <section class="nebenrechnung" aria-label="Altersvorsorgedepot">
+    <div class="card">
+      <h2>Altersvorsorgedepot</h2>
+      <p class="notiz" style="margin:-4px 0 6px">Wird getrennt bespart — zählt zum Vermögen, aber
+        nicht zur Basis und nicht zum Sparplan.</p>
+      <div id="g-vorsorge"></div>
+      <div class="summe-zeile"><span>Summe</span><span id="s-vorsorge">—</span></div>
     </div>
   </section>
 
@@ -501,6 +561,21 @@
       <h3 class="unterkopf">Zielgewichte</h3>
       <div id="gewichte"></div>
       <p class="notiz" id="gewichteSumme"></p>
+    </div>
+  </details>
+
+  <details id="assetsBox">
+    <summary>Positionen ändern</summary>
+    <div class="card">
+      <p class="notiz" style="margin:0 0 8px">
+        Hier lässt sich die Liste selbst bearbeiten: Name, Gruppe und Anlageklasse jeder
+        Position — und über ✕ fliegt sie ganz heraus. Nur die Gruppe <b>Bespart</b> geht in
+        Basis, Kaufverteilung und Sparplan ein; alle anderen zählen allein zum Gesamtvermögen.
+        Nach dem Ändern unten auf „Änderungen speichern“ tippen.
+      </p>
+      <div id="assetsListe"></div>
+      <button type="button" class="knopf-gross" id="assetNeu">Position hinzufügen</button>
+      <p class="notiz" id="assetsNotiz"></p>
     </div>
   </details>
 
@@ -751,44 +826,67 @@
 
   // Namen und Zielgewichte sind fest hinterlegt, Beträge nicht: Die Seite
   // startet leer und zeigt nur, was selbst eingetragen und gespeichert wurde.
-  // Die Zielgewichte stehen fest und bleiben stehen — glatte Zahlen, die sich
-  // zu 100 % addieren: 90 % Aktien, 5 % Edelmetalle, 5 % Krypto. Umgekehrt
-  // ergeben sich die Sparraten aus ihnen (siehe "Zielgewichte und Sparplan").
-  var STANDARD_POSITIONEN = [
-    { id: "world",   name: "Core MSCI World",       wert: 0, gewicht: 50 },
-    { id: "em",      name: "MSCI Emerging Markets", wert: 0, gewicht: 20 },
-    { id: "wsc",     name: "MSCI World Small Cap",  wert: 0, gewicht: 7.5 },
-    { id: "emsc",    name: "MSCI EM Small Cap",     wert: 0, gewicht: 5 },
-    { id: "europe",  name: "Core Stoxx Europe 600", wert: 0, gewicht: 5 },
-    { id: "africa",  name: "MSCI Africa Top 50",    wert: 0, gewicht: 2.5 },
-    { id: "gold",    name: "Gold",                  wert: 0, gewicht: 2.5 },
-    { id: "silber",  name: "Silber",                wert: 0, gewicht: 2.5 },
-    { id: "btc",     name: "Bitcoin",               wert: 0, gewicht: 5 }
+  //
+  // Alle Positionen stehen in einer Liste. Zwei Merkmale ordnen sie ein:
+  //   gruppe — wie sie behandelt wird (nur "bespart" bekommt Geld)
+  //   klasse — was sie ihrer Art nach ist (fürs Tortendiagramm)
+  // Über "Positionen ändern" lässt sich die Liste selbst bearbeiten; sie wird
+  // deshalb im Zustand geführt und nicht fest im Programm.
+  var GRUPPEN = [
+    { id: "bespart",    kurz: "Bespart",     name: "Besparte Positionen",        farbe: "f-bespart" },
+    { id: "altlast",    kurz: "Altlast",     name: "Altlasten",                  farbe: "f-alt" },
+    { id: "beobachtet", kurz: "Beobachten",  name: "Beobachten",                 farbe: "f-beob" },
+    { id: "vorsorge",   kurz: "Vorsorge",    name: "Altersvorsorgedepot",        farbe: "f-vors" }
   ];
+  var KLASSEN = [
+    { id: "etf",    name: "ETFs" },
+    { id: "pm",     name: "Private Markets" },
+    { id: "edel",   name: "Edelmetalle" },
+    { id: "krypto", name: "Krypto" }
+  ];
+
+  // Die Zielgewichte der besparten Positionen stehen fest und bleiben stehen —
+  // glatte Zahlen, die sich zu 100 % addieren: 90 % Aktien, 5 % Edelmetalle,
+  // 5 % Krypto. Umgekehrt ergeben sich die Sparraten aus ihnen.
+  var STANDARD_ASSETS = [
+    { id: "world",  name: "Core MSCI World",              gruppe: "bespart",    klasse: "etf",    gewicht: 50 },
+    { id: "em",     name: "MSCI Emerging Markets",        gruppe: "bespart",    klasse: "etf",    gewicht: 20 },
+    { id: "wsc",    name: "MSCI World Small Cap",         gruppe: "bespart",    klasse: "etf",    gewicht: 7.5 },
+    { id: "emsc",   name: "MSCI EM Small Cap",            gruppe: "bespart",    klasse: "etf",    gewicht: 5 },
+    { id: "europe", name: "Core Stoxx Europe 600",        gruppe: "bespart",    klasse: "etf",    gewicht: 5 },
+    { id: "africa", name: "MSCI Africa Top 50",           gruppe: "bespart",    klasse: "etf",    gewicht: 2.5 },
+    { id: "gold",   name: "Gold",                         gruppe: "bespart",    klasse: "edel",   gewicht: 2.5 },
+    { id: "silber", name: "Silber",                       gruppe: "bespart",    klasse: "edel",   gewicht: 2.5 },
+    { id: "btc",    name: "Bitcoin",                      gruppe: "bespart",    klasse: "krypto", gewicht: 5 },
+    { id: "wit",    name: "World Information Technology", gruppe: "altlast",    klasse: "etf",    gewicht: 0 },
+    { id: "aibd",   name: "AI & Big Data",                gruppe: "altlast",    klasse: "etf",    gewicht: 0 },
+    { id: "scgt",   name: "Small Cap Green Transition",   gruppe: "altlast",    klasse: "etf",    gewicht: 0 },
+    { id: "apollo", name: "Apollo (Private Markets)",     gruppe: "beobachtet", klasse: "pm",     gewicht: 0 },
+    { id: "eqt",    name: "EQT (Private Markets)",        gruppe: "beobachtet", klasse: "pm",     gewicht: 0 },
+    { id: "kommer", name: "Kommer ETF",                   gruppe: "vorsorge",   klasse: "etf",    gewicht: 0 }
+  ];
+
   // Stand der hinterlegten Zielgewichte. Ändert sich hier oben etwas, bekommt
   // dieser Wert ein neues Datum — dann übernimmt ein gespeicherter Stand die
   // neuen Gewichte beim nächsten Öffnen. Von Hand gesetzte Prozentzahlen
   // bleiben dabei auf der Strecke; solange der Stand gleich bleibt, nicht.
   var GEWICHTE_STAND = "2026-09-10";
-  var STANDARD_ALTLASTEN = [
-    { id: "wit",   name: "World Information Technology", wert: 0 },
-    { id: "aibd",  name: "AI & Big Data",                wert: 0 },
-    { id: "scgt",  name: "Small Cap Green Transition",   wert: 0 }
-  ];
-  var STANDARD_BEOBACHTET = [
-    { id: "apollo", name: "Apollo (Private Markets)", wert: 0 },
-    { id: "eqt",    name: "EQT (Private Markets)",    wert: 0 }
-  ];
+  // Dasselbe für die Liste selbst: Bei neuem Stand werden Positionen, die hier
+  // oben neu hinzugekommen sind, einmalig nachgetragen. Selbst gelöschte
+  // Positionen bleiben danach gelöscht, selbst angelegte bleiben erhalten.
+  var ASSETS_STAND = "2026-10-21";
+
   var STANDARD_PUFFER = 10000;
   var SPEICHER = "zuflussverteiler.v1";
   var INVEST_TAG = 15;
-  var FASSUNG = "2026-09-10 b";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+  var FASSUNG = "2026-10-21 a";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
 
   var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
   var zahl2 = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var proz = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var prozZiel = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+  var zahl0 = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 1 });
 
   function fmtEuro(n) { return eur.format(n || 0); }
   function fmtEuroKurz(n) { return eurKurz.format(n || 0); }
@@ -805,22 +903,29 @@
   }
 
   // ---- Zustand laden / speichern ----------------------------------------
+  function standardAssets() {
+    return STANDARD_ASSETS.map(function (a) {
+      return { id: a.id, name: a.name, gruppe: a.gruppe, klasse: a.klasse, gewicht: a.gewicht, wert: 0 };
+    });
+  }
+
   function standardZustand() {
     return {
       guthaben: null,
       puffer: STANDARD_PUFFER,
-      werte: STANDARD_POSITIONEN.reduce(function (o, p) { o[p.id] = p.wert; return o; }, {}),
-      gewichte: STANDARD_POSITIONEN.reduce(function (o, p) { o[p.id] = p.gewicht; return o; }, {}),
-      altlasten: STANDARD_ALTLASTEN.reduce(function (o, p) { o[p.id] = p.wert; return o; }, {}),
-      beobachtet: STANDARD_BEOBACHTET.reduce(function (o, p) { o[p.id] = p.wert; return o; }, {}),
+      assets: standardAssets(),
       verlauf: [],
       gespeichertAm: null,
       gewichteStand: GEWICHTE_STAND,
+      assetsStand: ASSETS_STAND,
       sparrate: null,        // monatliche Sparrate, einmal im Jahr neu gesetzt
       sparplan: null,        // { id: Euro im Monat } — Ergebnis der Aufteilung
       sparplanAm: null       // wann der Sparplan zuletzt gerechnet wurde
     };
   }
+
+  function istGruppe(id) { return GRUPPEN.some(function (g) { return g.id === id; }); }
+  function istKlasse(id) { return KLASSEN.some(function (k) { return k.id === id; }); }
 
   // Läuft das Speichern in diesem Browser überhaupt? Und lag etwas vor?
   var speicherGeht = true;
@@ -845,21 +950,47 @@
     if (typeof g.gespeichertAm === "string") zustand.gespeichertAm = g.gespeichertAm;
     if (typeof g.sparrate === "number" && isFinite(g.sparrate)) zustand.sparrate = g.sparrate;
     if (typeof g.sparplanAm === "string") zustand.sparplanAm = g.sparplanAm;
+
+    // Die Positionsliste: entweder schon in neuer Form gespeichert, oder noch
+    // als die vier getrennten Tabellen aus der Zeit vor dem Änderungsmodus.
+    if (Array.isArray(g.assets)) {
+      var uebernommen = [];
+      g.assets.forEach(function (a) {
+        if (!a || typeof a !== "object") return;
+        if (typeof a.id !== "string" || !a.id) return;
+        if (uebernommen.some(function (x) { return x.id === a.id; })) return;
+        uebernommen.push({
+          id: a.id,
+          name: typeof a.name === "string" && a.name.trim() ? a.name : a.id,
+          gruppe: istGruppe(a.gruppe) ? a.gruppe : "beobachtet",
+          klasse: istKlasse(a.klasse) ? a.klasse : "etf",
+          gewicht: typeof a.gewicht === "number" && isFinite(a.gewicht) ? a.gewicht : 0,
+          wert: typeof a.wert === "number" && isFinite(a.wert) ? a.wert : 0
+        });
+      });
+      if (uebernommen.length) zustand.assets = uebernommen;
+    } else {
+      // Altbestand: werte/gewichte für die besparten, altlasten/beobachtet daneben.
+      zustand.assets.forEach(function (a) {
+        var ausAlt =
+          a.gruppe === "bespart"    ? (g.werte && g.werte[a.id]) :
+          a.gruppe === "altlast"    ? (g.altlasten && g.altlasten[a.id]) :
+          a.gruppe === "beobachtet" ? (g.beobachtet && g.beobachtet[a.id]) : undefined;
+        if (typeof ausAlt === "number" && isFinite(ausAlt)) a.wert = ausAlt;
+        var altesGewicht = g.gewichte && g.gewichte[a.id];
+        if (typeof altesGewicht === "number" && isFinite(altesGewicht)) a.gewicht = altesGewicht;
+      });
+    }
+
     if (g.sparplan && typeof g.sparplan === "object") {
       var plan = {};
-      STANDARD_POSITIONEN.forEach(function (p) {
-        var r = g.sparplan[p.id];
-        if (typeof r === "number" && isFinite(r)) plan[p.id] = r;
+      zustand.assets.forEach(function (a) {
+        var r = g.sparplan[a.id];
+        if (typeof r === "number" && isFinite(r)) plan[a.id] = r;
       });
       if (Object.keys(plan).length) zustand.sparplan = plan;
     }
-    ["werte", "gewichte", "altlasten", "beobachtet"].forEach(function (feld) {
-      if (g[feld] && typeof g[feld] === "object") {
-        Object.keys(zustand[feld]).forEach(function (id) {
-          if (typeof g[feld][id] === "number" && isFinite(g[feld][id])) zustand[feld][id] = g[feld][id];
-        });
-      }
-    });
+
     if (Array.isArray(g.verlauf)) {
       zustand.verlauf = g.verlauf
         .filter(function (e) {
@@ -871,7 +1002,23 @@
     // Sind im Programm neue Zielgewichte hinterlegt, gelten die neuen — sonst
     // hielte ein gespeicherter Stand die alte Aufteilung für immer fest.
     if (g.gewichteStand !== GEWICHTE_STAND) {
-      STANDARD_POSITIONEN.forEach(function (p) { zustand.gewichte[p.id] = p.gewicht; });
+      zustand.assets.forEach(function (a) {
+        var vorlage = STANDARD_ASSETS.filter(function (s) { return s.id === a.id; })[0];
+        if (vorlage) a.gewicht = vorlage.gewicht;
+      });
+    }
+
+    // Neu hinzugekommene Standardpositionen einmalig nachtragen. Was der
+    // Nutzer selbst gelöscht hat, bleibt gelöscht — deshalb nur bei neuem Stand.
+    if (g.assetsStand !== ASSETS_STAND) {
+      STANDARD_ASSETS.forEach(function (s) {
+        var da = zustand.assets.some(function (a) { return a.id === s.id; });
+        if (!da) {
+          zustand.assets.push({
+            id: s.id, name: s.name, gruppe: s.gruppe, klasse: s.klasse, gewicht: s.gewicht, wert: 0
+          });
+        }
+      });
     }
     return true;
   }
@@ -1100,12 +1247,40 @@
   var pufferFeld = geldFeld(zustand.puffer, function (v) { zustand.puffer = v == null ? 0 : v; einstellungGeaendert(); });
   el("puffer").replaceWith(pufferFeld); pufferFeld.id = "puffer";
 
+  // ---- Positionen: Zugriff und Aufbau -----------------------------------
+  function assetsDer(gruppe) {
+    return zustand.assets.filter(function (a) { return a.gruppe === gruppe; });
+  }
+  function assetVon(id) {
+    return zustand.assets.filter(function (a) { return a.id === id; })[0] || null;
+  }
+  function summeDer(gruppe) {
+    return assetsDer(gruppe).reduce(function (s, a) { return s + (a.wert || 0); }, 0);
+  }
+
+  // Kleiner Knopf, der den Verlauf dieser einen Position öffnet.
+  function verlaufKnopf(id, name) {
+    var knopf = neu("button", "pos-verlauf");
+    knopf.type = "button";
+    knopf.title = "Verlauf von " + name;
+    knopf.setAttribute("aria-label", "Verlauf von " + name + " anzeigen");
+    var bild = svgKind("svg", { viewBox: "0 0 17 13", "aria-hidden": "true" });
+    bild.append(svgKind("polyline", {
+      points: "1,11 5.5,6 9,8.5 16,1.5",
+      fill: "none", stroke: "currentColor", "stroke-width": "1.8",
+      "stroke-linecap": "round", "stroke-linejoin": "round"
+    }));
+    knopf.append(bild);
+    knopf.addEventListener("click", function () { verlaufOeffnen(id); });
+    return knopf;
+  }
+
   function positionsZeile(p) {
     var wrap = neu("div", "pos");
     var kopf = neu("div", "pos-kopf");
     kopf.append(neu("span", "pos-name", p.name));
     var kauf = neu("span", "pos-kauf keiner", "—");
-    kopf.append(kauf);
+    kopf.append(kauf, verlaufKnopf(p.id, p.name));
     wrap.append(kopf);
 
     var zahlen = neu("div", "pos-zahlen");
@@ -1124,8 +1299,8 @@
     var lab = neu("label", "", "Aktueller Wert");
     lab.setAttribute("for", "wert-" + p.id);
     var eingabe = neu("span", "eingabe");
-    var input = geldFeld(zustand.werte[p.id], function (v) {
-      zustand.werte[p.id] = v == null ? 0 : v; wertGeaendert();
+    var input = geldFeld(p.wert, function (v) {
+      p.wert = v == null ? 0 : v; wertGeaendert();
     });
     input.id = "wert-" + p.id;
     eingabe.append(input, neu("span", "einheit", "€"));
@@ -1138,41 +1313,181 @@
     return wrap;
   }
 
-  var liste = el("positionen");
-  STANDARD_POSITIONEN.forEach(function (p) { liste.append(positionsZeile(p)); });
-
-  // Nebengruppen (Altlasten, Beobachten): nur Name und Wert, keine Rechnung
-  function baueNebengruppe(containerId, definitionen, feld) {
-    var liste = el(containerId);
-    definitionen.forEach(function (a) {
-      var zeile = neu("div", "feld");
-      var lab = neu("label", "", a.name);
-      lab.setAttribute("for", feld + "-" + a.id);
-      var eingabe = neu("span", "eingabe");
-      var input = geldFeld(zustand[feld][a.id], function (v) {
-        zustand[feld][a.id] = v == null ? 0 : v; wertGeaendert();
-      });
-      input.id = feld + "-" + a.id;
-      eingabe.append(input, neu("span", "einheit", "€"));
-      zeile.append(lab, eingabe);
-      liste.append(zeile);
-      refs[feld + "-" + a.id] = { input: input, label: lab };
+  // Nebengruppen (Altlasten, Beobachten, Vorsorge): nur Name und Wert
+  function nebenZeile(a) {
+    var zeile = neu("div", "feld");
+    var lab = neu("label", "", a.name);
+    lab.setAttribute("for", "wert-" + a.id);
+    var eingabe = neu("span", "eingabe");
+    var input = geldFeld(a.wert, function (v) {
+      a.wert = v == null ? 0 : v; wertGeaendert();
     });
+    input.id = "wert-" + a.id;
+    eingabe.append(input, neu("span", "einheit", "€"), verlaufKnopf(a.id, a.name));
+    zeile.append(lab, eingabe);
+    refs[a.id] = { input: input, label: lab };
+    return zeile;
   }
-  baueNebengruppe("altlasten", STANDARD_ALTLASTEN, "altlasten");
-  baueNebengruppe("beobachtet", STANDARD_BEOBACHTET, "beobachtet");
 
-  function summeGruppe(definitionen, feld) {
-    return definitionen.reduce(function (s, a) { return s + (zustand[feld][a.id] || 0); }, 0);
+  // Zielgewicht und errechnete Sparrate je besparter Position
+  function gewichtsZeile(p) {
+    var feld = neu("div", "feld");
+    var lab = neu("label", "", p.name);
+    lab.setAttribute("for", "gew-" + p.id);
+    var rate = neu("small", "gew-rate", "");
+    lab.append(rate);
+    var eingabe = neu("span", "eingabe");
+    var input = geldFeld(p.gewicht, function (v) {
+      p.gewicht = v == null ? 0 : v; einstellungGeaendert();
+    }, "schmal");
+    input.id = "gew-" + p.id;
+    input.value = prozZiel.format(p.gewicht);
+    input.addEventListener("blur", function () {
+      input.value = prozZiel.format(parseZahl(input.value));
+    });
+    eingabe.append(input, neu("span", "einheit", "%"));
+    feld.append(lab, eingabe);
+    refs["gew-" + p.id] = { input: input, rate: rate };
+    return feld;
   }
 
-  // Aufschlüsselung des Gesamtvermögens
-  var VERMOEGEN_GRUPPEN = [
-    { id: "bespart", name: "Besparte Positionen", farbe: "f-bespart" },
-    { id: "alt",     name: "Altlasten",           farbe: "f-alt" },
-    { id: "beob",    name: "Beobachten",          farbe: "f-beob" },
-    { id: "bank",    name: "Bankguthaben",        farbe: "f-bank" }
-  ];
+  // Baut alle Listen aus dem Zustand neu auf. Wird beim Start aufgerufen und
+  // nach jeder Änderung an der Positionsliste selbst.
+  function baueAnzeigeListen() {
+    Object.keys(refs).forEach(function (k) {
+      if (k.indexOf("v-") !== 0 && k.indexOf("k-") !== 0) delete refs[k];
+    });
+
+    var liste = el("positionen");
+    liste.textContent = "";
+    var bespart = assetsDer("bespart");
+    if (!bespart.length) {
+      liste.append(neu("p", "notiz", "Keine besparten Positionen — über „Positionen ändern“ anlegen."));
+    }
+    bespart.forEach(function (p) { liste.append(positionsZeile(p)); });
+
+    ["altlast", "beobachtet", "vorsorge"].forEach(function (gruppe) {
+      var kasten = el("g-" + gruppe);
+      kasten.textContent = "";
+      var drin = assetsDer(gruppe);
+      if (!drin.length) kasten.append(neu("p", "notiz", "Nichts eingetragen."));
+      else drin.forEach(function (a) { kasten.append(nebenZeile(a)); });
+    });
+
+    var gewListe = el("gewichte");
+    gewListe.textContent = "";
+    bespart.forEach(function (p) { gewListe.append(gewichtsZeile(p)); });
+
+    fuelleVerlaufAuswahl();
+  }
+
+  function baueListen() {
+    baueAnzeigeListen();
+    baueAssetsListe();
+  }
+
+  // Nach einer Änderung an der Liste: Anzeige neu bauen, Felder füllen, rechnen.
+  function listeGeaendert(auchEditor) {
+    if (auchEditor) baueListen(); else baueAnzeigeListen();
+    alleFelderSchreiben();
+    aktualisieren();
+    markiereUngespeichert();
+  }
+
+  // ---- Änderungsmodus: Positionen anlegen, umhängen, löschen ------------
+  function neueId() {
+    var n = 1, id;
+    do { id = "eigen" + n; n++; } while (assetVon(id));
+    return id;
+  }
+
+  function auswahlFeld(werte, aktuell, beiWahl) {
+    var s = document.createElement("select");
+    werte.forEach(function (w) {
+      var o = document.createElement("option");
+      o.value = w.id;
+      o.textContent = w.kurz || w.name;
+      if (w.id === aktuell) o.selected = true;
+      s.append(o);
+    });
+    s.addEventListener("change", function () { beiWahl(s.value); });
+    return s;
+  }
+
+  function baueAssetsListe() {
+    var kasten = el("assetsListe");
+    kasten.textContent = "";
+
+    zustand.assets.forEach(function (a) {
+      var zeile = neu("div", "asset-zeile");
+
+      var kopf = neu("div", "asset-kopf");
+      var name = neu("input", "breit");
+      name.type = "text";
+      name.value = a.name;
+      name.setAttribute("aria-label", "Name der Position");
+      name.addEventListener("input", function () {
+        a.name = name.value;
+        markiereUngespeichert();
+      });
+      name.addEventListener("blur", function () {
+        if (!name.value.trim()) { a.name = a.id; name.value = a.name; }
+        baueAnzeigeListen();
+        alleFelderSchreiben();
+        aktualisieren();
+      });
+
+      var weg = neu("button", "asset-weg", "✕");
+      weg.type = "button";
+      weg.title = "Position löschen";
+      weg.setAttribute("aria-label", a.name + " löschen");
+      weg.addEventListener("click", function () {
+        var hinweis = "„" + a.name + "“ aus der Liste entfernen?";
+        if (a.wert) hinweis += "\n\nDort stehen zurzeit " + fmtEuro(a.wert) + ".";
+        hinweis += "\n\nBereits festgehaltene Verlaufseinträge bleiben erhalten.";
+        if (!confirm(hinweis)) return;
+        zustand.assets = zustand.assets.filter(function (x) { return x !== a; });
+        if (zustand.sparplan) delete zustand.sparplan[a.id];
+        listeGeaendert(true);
+      });
+      kopf.append(name, weg);
+      zeile.append(kopf);
+
+      var wahl = neu("div", "asset-wahl");
+      wahl.append(
+        auswahlFeld(GRUPPEN, a.gruppe, function (wert) {
+          a.gruppe = wert;
+          if (wert !== "bespart") a.gewicht = 0;
+          listeGeaendert(false);
+        }),
+        auswahlFeld(KLASSEN, a.klasse, function (wert) {
+          a.klasse = wert;
+          listeGeaendert(false);
+        })
+      );
+      zeile.append(wahl);
+      kasten.append(zeile);
+    });
+
+    var zahl = zustand.assets.length;
+    el("assetsNotiz").textContent =
+      zahl + (zahl === 1 ? " Position" : " Positionen") + " · davon " +
+      assetsDer("bespart").length + " bespart. Die linke Auswahl bestimmt die Gruppe, " +
+      "die rechte die Anlageklasse fürs Tortendiagramm.";
+  }
+
+  el("assetNeu").addEventListener("click", function () {
+    zustand.assets.push({
+      id: neueId(), name: "Neue Position", gruppe: "beobachtet", klasse: "etf", gewicht: 0, wert: 0
+    });
+    listeGeaendert(true);
+    el("assetsBox").open = true;
+  });
+
+  // Aufschlüsselung des Gesamtvermögens: die Gruppen plus das Bankguthaben
+  var VERMOEGEN_GRUPPEN = GRUPPEN.map(function (g) {
+    return { id: g.id, name: g.name, farbe: g.farbe };
+  }).concat([{ id: "bank", name: "Bankguthaben", farbe: "f-bank" }]);
   var streifen = el("vStreifen");
   var aufschluesselung = el("vAufschluesselung");
   VERMOEGEN_GRUPPEN.forEach(function (g) {
@@ -1191,31 +1506,19 @@
   });
 
   // ---- Anlageklassen ----------------------------------------------------
-  // Andere Einteilung als die vier Gruppen darunter: hier zählt, was eine
-  // Position ihrer Art nach ist, nicht wie ich sie bespare.
-  var EDELMETALL_IDS = ["gold", "silber"];
-  var PRIVATE_MARKETS_IDS = ["apollo", "eqt"];
-  var KRYPTO_IDS = ["btc"];
-  var KEINE_ETFS = EDELMETALL_IDS.concat(KRYPTO_IDS);
+  // Andere Einteilung als die Gruppen darunter: hier zählt, was eine Position
+  // ihrer Art nach ist, nicht wie ich sie bespare. Beides steht an jeder
+  // Position selbst und lässt sich über "Positionen ändern" umstellen.
+  var ANLAGEKLASSEN = [{ id: "bank", name: "Bankguthaben" }].concat(
+    KLASSEN.map(function (k) { return { id: k.id, name: k.name }; })
+  );
 
-  function summeVon(feld, ids) {
-    return ids.reduce(function (s, id) { return s + (zustand[feld][id] || 0); }, 0);
+  function klassenWert(id) {
+    if (id === "bank") return zustand.guthaben || 0;
+    return zustand.assets.reduce(function (s, a) {
+      return a.klasse === id ? s + (a.wert || 0) : s;
+    }, 0);
   }
-
-  var ANLAGEKLASSEN = [
-    { id: "bank", name: "Bankguthaben", wert: function () { return zustand.guthaben || 0; } },
-    { id: "etf", name: "ETFs", wert: function () {
-        var s = 0;
-        STANDARD_POSITIONEN.forEach(function (p) {
-          if (KEINE_ETFS.indexOf(p.id) < 0) s += zustand.werte[p.id] || 0;
-        });
-        STANDARD_ALTLASTEN.forEach(function (a) { s += zustand.altlasten[a.id] || 0; });
-        return s;
-      } },
-    { id: "pm", name: "Private Markets", wert: function () { return summeVon("beobachtet", PRIVATE_MARKETS_IDS); } },
-    { id: "edel", name: "Edelmetalle", wert: function () { return summeVon("werte", EDELMETALL_IDS); } },
-    { id: "krypto", name: "Krypto", wert: function () { return summeVon("werte", KRYPTO_IDS); } }
-  ];
 
   var klassenListe = el("klassenListe");
   ANLAGEKLASSEN.forEach(function (k) {
@@ -1307,7 +1610,7 @@
 
   function zeigeAnlageklassen(gesamt) {
     var anteile = ANLAGEKLASSEN.map(function (k) {
-      return { id: k.id, name: k.name, wert: k.wert() };
+      return { id: k.id, name: k.name, wert: klassenWert(k.id) };
     });
     anteile.forEach(function (a) {
       var r = refs["k-" + a.id];
@@ -1322,27 +1625,6 @@
       }).join(", ") + ".");
   }
 
-  var gewListe = el("gewichte");
-  STANDARD_POSITIONEN.forEach(function (p) {
-    var feld = neu("div", "feld");
-    var lab = neu("label", "", p.name);
-    lab.setAttribute("for", "gew-" + p.id);
-    var rate = neu("small", "gew-rate", "");
-    lab.append(rate);
-    var eingabe = neu("span", "eingabe");
-    var input = geldFeld(zustand.gewichte[p.id], function (v) {
-      zustand.gewichte[p.id] = v == null ? 0 : v; einstellungGeaendert();
-    }, "schmal");
-    input.id = "gew-" + p.id;
-    input.value = prozZiel.format(zustand.gewichte[p.id]);
-    input.addEventListener("blur", function () {
-      input.value = prozZiel.format(parseZahl(input.value));
-    });
-    eingabe.append(input, neu("span", "einheit", "%"));
-    feld.append(lab, eingabe);
-    gewListe.append(feld);
-    refs["gew-" + p.id] = { input: input, rate: rate };
-  });
 
   // ---- Sparplan ---------------------------------------------------------
   // Einmal im Jahr, nach dem letzten Invest im Dezember: Sparrate eintragen,
@@ -1355,8 +1637,9 @@
 
   function zeigeSparplan() {
     var plan = zustand.sparplan;
-    STANDARD_POSITIONEN.forEach(function (p) {
+    assetsDer("bespart").forEach(function (p) {
       var r = refs["gew-" + p.id];
+      if (!r) return;
       var betrag = plan ? (plan[p.id] || 0) : 0;
       r.rate.textContent = !plan ? "" : (betrag > 0 ? fmtEuroKurz(betrag) + " im Monat" : "dieses Jahr kein Sparplan");
       r.rate.classList.toggle("ohne", !!plan && betrag <= 0);
@@ -1368,7 +1651,7 @@
       return;
     }
     var summe = 0, bedient = 0;
-    STANDARD_POSITIONEN.forEach(function (p) {
+    assetsDer("bespart").forEach(function (p) {
       var betrag = plan[p.id] || 0;
       summe += betrag;
       if (betrag > 0) bedient++;
@@ -1439,12 +1722,8 @@
   // ---- Rechnen und anzeigen --------------------------------------------
   // Die neun besparten Positionen, so wie die Rechenlogik sie erwartet.
   function zielPositionen() {
-    return STANDARD_POSITIONEN.map(function (p) {
-      return {
-        id: p.id, name: p.name,
-        gewicht: zustand.gewichte[p.id] || 0,
-        wert: zustand.werte[p.id] || 0
-      };
+    return assetsDer("bespart").map(function (p) {
+      return { id: p.id, name: p.name, gewicht: p.gewicht || 0, wert: p.wert || 0 };
     });
   }
 
@@ -1525,32 +1804,30 @@
       r.kauf.classList.toggle("keiner", kaufBetrag <= 0);
       zeigeGeld(r.kauf, kaufBetrag > 0 ? "+ " + fmtEuroKurz(kaufBetrag) : "—", kaufBetrag > 0);
       if (document.activeElement !== r.input) {
-        r.input.value = zahl2.format(zustand.werte[p.id] || 0);
+        r.input.value = zahl2.format(p.wert || 0);
       }
     });
 
-    // Nebengruppen
-    function zeigeGruppe(definitionen, feld, summeId) {
-      definitionen.forEach(function (a) {
-        var r = refs[feld + "-" + a.id];
-        if (document.activeElement !== r.input) r.input.value = zahl2.format(zustand[feld][a.id] || 0);
+    // Nebengruppen: Felder nachziehen und Summen anschreiben
+    var summen = { bespart: e.basis };
+    ["altlast", "beobachtet", "vorsorge"].forEach(function (gruppe) {
+      assetsDer(gruppe).forEach(function (a) {
+        var r = refs[a.id];
+        if (r && document.activeElement !== r.input) r.input.value = zahl2.format(a.wert || 0);
       });
-      var summe = summeGruppe(definitionen, feld);
-      el(summeId).textContent = fmtEuro(summe);
-      return summe;
-    }
-    var altSumme = zeigeGruppe(STANDARD_ALTLASTEN, "altlasten", "altSumme");
-    var beobSumme = zeigeGruppe(STANDARD_BEOBACHTET, "beobachtet", "beobSumme");
+      summen[gruppe] = summeDer(gruppe);
+      el("s-" + gruppe).textContent = fmtEuro(summen[gruppe]);
+    });
 
-    // Gesamtvermögen: besparte Positionen + Altlasten + Beobachten + Bankguthaben
+    // Gesamtvermögen: alle Gruppen plus Bankguthaben
     var bank = zustand.guthaben || 0;
-    var anteile = { bespart: e.basis, alt: altSumme, beob: beobSumme, bank: bank };
-    var gesamt = e.basis + altSumme + beobSumme + bank;
+    summen.bank = bank;
+    var gesamt = GRUPPEN.reduce(function (s, g) { return s + summen[g.id]; }, bank);
     aktuellesGesamt = gesamt;
-    aktuelleGruppen = anteile;
+    aktuelleGruppen = summen;
     tachoAuf(Math.round(gesamt * 100));
     VERMOEGEN_GRUPPEN.forEach(function (g) {
-      var wert = anteile[g.id];
+      var wert = summen[g.id] || 0;
       var anteil = gesamt > 0 ? (wert / gesamt) * 100 : 0;
       var r = refs["v-" + g.id];
       zeigeGeld(r.euro, fmtEuro(wert));
@@ -1597,7 +1874,15 @@
 
   function verlaufErfassen() {
     var heute = heuteISO();
-    var eintrag = { datum: heute, gesamt: aktuellesGesamt, gruppen: aktuelleGruppen };
+    var werte = {};
+    zustand.assets.forEach(function (a) { werte[a.id] = a.wert || 0; });
+    var eintrag = {
+      datum: heute,
+      gesamt: aktuellesGesamt,
+      gruppen: aktuelleGruppen,
+      bank: zustand.guthaben || 0,
+      werte: werte
+    };
     var vorhanden = -1;
     zustand.verlauf.forEach(function (e, i) { if (e.datum === heute) vorhanden = i; });
     if (vorhanden >= 0) zustand.verlauf[vorhanden] = eintrag;
@@ -1605,6 +1890,67 @@
     zustand.verlauf.sort(function (a, b) { return a.datum < b.datum ? -1 : 1; });
     zeigeDelta();
     if (fenster.open) zeigeVerlauf();
+  }
+
+  // ---- Welche Reihe wird gezeigt? --------------------------------------
+  // "gesamt" und "bank" liegen direkt im Eintrag, jede Position unter werte.
+  // Einträge aus der Zeit vor dieser Fassung kennen nur das Gesamtvermögen;
+  // für sie fehlt die Position einfach, die Reihe beginnt entsprechend später.
+  var verlaufWahl = "gesamt";
+
+  function wertAus(eintrag, schluessel) {
+    if (schluessel === "gesamt") return eintrag.gesamt;
+    if (schluessel === "bank") {
+      return typeof eintrag.bank === "number" ? eintrag.bank : null;
+    }
+    if (!eintrag.werte || typeof eintrag.werte[schluessel] !== "number") return null;
+    return eintrag.werte[schluessel];
+  }
+
+  function reiheVon(schluessel) {
+    var reihe = [];
+    zustand.verlauf.forEach(function (e) {
+      var w = wertAus(e, schluessel);
+      if (w != null && isFinite(w)) reihe.push({ datum: e.datum, wert: w, e: e });
+    });
+    return reihe;
+  }
+
+  function nameVon(schluessel) {
+    if (schluessel === "gesamt") return "Gesamtvermögen";
+    if (schluessel === "bank") return "Bankguthaben";
+    var a = assetVon(schluessel);
+    return a ? a.name : schluessel;
+  }
+
+  function fuelleVerlaufAuswahl() {
+    var auswahl = el("verlaufAuswahl");
+    if (!auswahl) return;
+    var vorher = verlaufWahl;
+    auswahl.textContent = "";
+    var eintraege = [{ id: "gesamt", name: "Gesamtvermögen" }, { id: "bank", name: "Bankguthaben" }];
+    GRUPPEN.forEach(function (g) {
+      assetsDer(g.id).forEach(function (a) {
+        eintraege.push({ id: a.id, name: a.name + " · " + g.kurz });
+      });
+    });
+    eintraege.forEach(function (e) {
+      var o = document.createElement("option");
+      o.value = e.id;
+      o.textContent = e.name;
+      auswahl.append(o);
+    });
+    var gibtEs = eintraege.some(function (e) { return e.id === vorher; });
+    verlaufWahl = gibtEs ? vorher : "gesamt";
+    auswahl.value = verlaufWahl;
+  }
+
+  function verlaufOeffnen(schluessel) {
+    verlaufWahl = schluessel || "gesamt";
+    var auswahl = el("verlaufAuswahl");
+    if (auswahl) auswahl.value = verlaufWahl;
+    if (!fenster.open) fenster.showModal();   // erst öffnen, dann zeichnen
+    zeigeVerlauf();
   }
 
   function zeigeDelta() {
@@ -1648,8 +1994,15 @@
   function zeichneDiagramm() {
     var bild = el("verlaufBild");
     var flaeche = el("verlaufFlaeche");
-    var eintraege = zustand.verlauf;
+    var legende = el("verlaufLegende");
+    var eintraege = reiheVon(verlaufWahl);
+    // Beim Vergleich einer einzelnen Position wird nicht in Euro gezeichnet,
+    // sondern indexiert: beide Reihen starten bei 100. Nur so lassen sich
+    // 1.200 € Gold und 60.000 € Gesamtvermögen in einem Bild vergleichen.
+    var vergleich = verlaufWahl !== "gesamt" ? reiheVon("gesamt") : null;
+    var indexiert = !!vergleich && eintraege.length > 1;
     bild.textContent = "";
+    legende.textContent = "";
     zeichnung = null;
     if (!eintraege.length) { bild.style.display = "none"; return; }
     bild.style.display = "block";
@@ -1662,7 +2015,22 @@
     bild.setAttribute("width", breite);
     bild.setAttribute("height", hoehe);
 
-    var werte = eintraege.map(function (e) { return e.gesamt; });
+    // Indexierung: Startwert = 100. Ein Startwert von 0 lässt sich nicht
+    // indexieren — dann bleibt es beim Euro-Bild.
+    var start = eintraege[0].wert;
+    if (indexiert && !(Math.abs(start) > 0.005)) indexiert = false;
+    var vergleichReihe = [];
+    if (indexiert) {
+      var vonDatum = eintraege[0].datum;
+      vergleichReihe = vergleich.filter(function (v) { return v.datum >= vonDatum; });
+      if (vergleichReihe.length < 2 || !(Math.abs(vergleichReihe[0].wert) > 0.005)) indexiert = false;
+    }
+    function indexWert(w, bezug) { return w / bezug * 100; }
+
+    var werte = eintraege.map(function (e) { return indexiert ? indexWert(e.wert, start) : e.wert; });
+    if (indexiert) {
+      werte = werte.concat(vergleichReihe.map(function (v) { return indexWert(v.wert, vergleichReihe[0].wert); }));
+    }
     var yMin = Math.min.apply(null, werte), yMax = Math.max.apply(null, werte);
     if (yMax - yMin < 1) {
       var luft = Math.max(100, Math.abs(yMax) * 0.02);
@@ -1682,12 +2050,28 @@
       var y = Y(v);
       bild.append(svgKind("line", { class: "vl-netz", x1: padL, y1: y, x2: padL + innenB, y2: y }));
       var t = svgKind("text", { class: "vl-schrift", x: padL - 8, y: y + 4, "text-anchor": "end" });
-      t.textContent = fmtEuroKurz(v);
+      t.textContent = indexiert ? zahl0.format(v) : fmtEuroKurz(v);
       bild.append(t);
     });
 
-    var punkte = eintraege.map(function (e, i) { return { x: X(zeiten[i]), y: Y(e.gesamt), e: e }; });
+    var punkte = eintraege.map(function (e, i) {
+      return { x: X(zeiten[i]), y: Y(indexiert ? indexWert(e.wert, start) : e.wert), e: e };
+    });
     var basis = padT + innenH;
+
+    // Vergleichslinie: das Gesamtvermögen, blass und gestrichelt
+    if (indexiert) {
+      var vp = vergleichReihe.map(function (v) {
+        return X(alsDatum(v.datum).getTime()) + "," + Y(indexWert(v.wert, vergleichReihe[0].wert));
+      });
+      bild.append(svgKind("polyline", { class: "vl-vergleich", points: vp.join(" ") }));
+      legende.textContent = "Entwicklung seit dem ersten Eintrag, Start = 100. " +
+        "Durchgezogen: " + nameVon(verlaufWahl) + ". Gestrichelt: Gesamtvermögen. " +
+        "Die Zahlen darunter stehen weiter in Euro.";
+    } else if (verlaufWahl !== "gesamt") {
+      legende.textContent = "Für einen Vergleich mit dem Gesamtvermögen braucht es " +
+        "mindestens zwei Einträge mit einem Startwert über null.";
+    }
 
     if (punkte.length > 1) {
       var flaechePfad = "M" + punkte[0].x + "," + basis +
@@ -1714,7 +2098,9 @@
       y: Math.max(padT - 6, letzter.y - 12),
       "text-anchor": letzter.x > padL + innenB * 0.6 ? "end" : "start"
     });
-    beschriftung.textContent = fmtEuroKurz(letzter.e.gesamt);
+    beschriftung.textContent = indexiert
+      ? zahl0.format(indexWert(letzter.e.wert, start))
+      : fmtEuroKurz(letzter.e.wert);
     bild.append(beschriftung);
 
     // Datumsbeschriftung: erster und letzter Eintrag
@@ -1735,7 +2121,8 @@
     var ring = svgKind("circle", { class: "vl-ende", cx: 0, cy: 0, r: 5, opacity: 0 });
     bild.append(kreuz, ring);
     bild.append(svgKind("rect", { x: 0, y: 0, width: breite, height: hoehe, fill: "transparent" }));
-    zeichnung = { bild: bild, breite: breite, punkte: punkte, kreuz: kreuz, ring: ring, oben: padT, unten: basis };
+    zeichnung = { bild: bild, breite: breite, punkte: punkte, kreuz: kreuz, ring: ring,
+                  oben: padT, unten: basis, indexiert: indexiert, start: start };
   }
 
   function beruehrung(ereignis) {
@@ -1754,7 +2141,10 @@
     zeichnung.ring.setAttribute("opacity", 1);
 
     var tipp = el("verlaufTooltip");
-    tipp.textContent = fmtDatumLang(naechster.e.datum) + " · " + fmtEuro(naechster.e.gesamt);
+    tipp.textContent = fmtDatumLang(naechster.e.datum) + " · " + fmtEuro(naechster.e.wert) +
+      (zeichnung.indexiert
+        ? " · " + zahl0.format(naechster.e.wert / zeichnung.start * 100)
+        : "");
     tipp.classList.add("an");
     var massstab = rahmen.width / zeichnung.breite;
     tipp.style.left = Math.min(Math.max(naechster.x * massstab, 60), rahmen.width - 60) + "px";
@@ -1772,26 +2162,31 @@
   el("verlaufFlaeche").addEventListener("pointercancel", beruehrungEnde);
 
   function zeigeVerlauf() {
-    var eintraege = zustand.verlauf;
+    var eintraege = reiheVon(verlaufWahl);
+    var titel = nameVon(verlaufWahl);
     var kacheln = el("verlaufKacheln");
     var tabelle = el("verlaufTabelle");
     kacheln.textContent = "";
     tabelle.textContent = "";
     beruehrungEnde();
+    el("verlaufTitel").textContent = "Verlauf " + titel;
 
     if (!eintraege.length) {
       zeichneDiagramm();
-      tabelle.append(neu("p", "v-leer",
-        "Noch keine Einträge. Sobald du einen Wert änderst, wird der heutige Stand festgehalten."));
+      tabelle.append(neu("p", "v-leer", zustand.verlauf.length
+        ? "Für „" + titel + "“ ist noch nichts festgehalten. Die Werte der einzelnen "
+          + "Positionen werden seit Oktober 2026 mitgeschrieben — ältere Einträge "
+          + "kennen nur das Gesamtvermögen."
+        : "Noch keine Einträge. Sobald du auf „Änderungen speichern“ tippst, wird der heutige Stand festgehalten."));
       el("verlaufNotiz").textContent = "";
       return;
     }
 
     var erster = eintraege[0], letzter = eintraege[eintraege.length - 1];
-    var gesamtDelta = letzter.gesamt - erster.gesamt;
-    var prozDelta = erster.gesamt !== 0 ? (gesamtDelta / Math.abs(erster.gesamt)) * 100 : 0;
+    var gesamtDelta = letzter.wert - erster.wert;
+    var prozDelta = erster.wert !== 0 ? (gesamtDelta / Math.abs(erster.wert)) * 100 : 0;
     [
-      { titel: "Aktuell", wert: fmtEuroKurz(letzter.gesamt) },
+      { titel: "Aktuell", wert: fmtEuroKurz(letzter.wert) },
       { titel: "seit " + fmtDatumKurz(erster.datum), wert: eintraege.length > 1 ? (gesamtDelta >= 0 ? "+" : "−") + fmtEuroKurz(Math.abs(gesamtDelta)) : "—" },
       { titel: eintraege.length === 1 ? "Eintrag" : "Einträge", wert: String(eintraege.length) }
     ].forEach(function (k, i) {
@@ -1807,22 +2202,22 @@
 
     var tab = neu("table", "v-tabelle");
     var kopf = neu("tr");
-    ["Datum", "Gesamt", "Veränderung", ""].forEach(function (t, i) {
+    ["Datum", titel === "Gesamtvermögen" ? "Gesamt" : "Wert", "Veränderung", ""].forEach(function (t, i) {
       kopf.append(neu("th", i === 0 ? "" : "r", t));
     });
     var kopfbereich = neu("thead");
     kopfbereich.append(kopf);
     tab.append(kopfbereich);
     var koerper = neu("tbody");
-    eintraege.slice().reverse().forEach(function (e) {
-      var stelle = eintraege.indexOf(e);
+    eintraege.slice().reverse().forEach(function (e, rueck) {
+      var stelle = eintraege.length - 1 - rueck;
       var vorher = stelle > 0 ? eintraege[stelle - 1] : null;
       var zeile = neu("tr");
       zeile.append(neu("td", "", fmtDatumTabelle(e.datum)));
-      zeile.append(neu("td", "r", fmtEuro(e.gesamt)));
+      zeile.append(neu("td", "r", fmtEuro(e.wert)));
       var delta = neu("td", "r");
       if (vorher) {
-        var d = e.gesamt - vorher.gesamt;
+        var d = e.wert - vorher.wert;
         delta.className = "r " + (d >= 0 ? "hoch" : "runter");
         delta.textContent = mitVorzeichen(d);
       } else {
@@ -1835,7 +2230,8 @@
       knopf.title = "Eintrag löschen";
       knopf.setAttribute("aria-label", "Eintrag vom " + fmtDatumLang(e.datum) + " löschen");
       knopf.addEventListener("click", function () {
-        if (!confirm("Eintrag vom " + fmtDatumLang(e.datum) + " löschen?")) return;
+        if (!confirm("Eintrag vom " + fmtDatumLang(e.datum) + " ganz löschen?\n\n" +
+                     "Damit verschwindet der Tag aus allen Verläufen, nicht nur aus diesem.")) return;
         zustand.verlauf = zustand.verlauf.filter(function (x) { return x.datum !== e.datum; });
         speichern();
         zeigeDelta();
@@ -1849,18 +2245,22 @@
     tabelle.append(tab);
 
     el("verlaufBild").setAttribute("aria-label",
-      "Verlauf des Gesamtvermögens, " + eintraege.length + " Einträge von " +
-      fmtDatumLang(erster.datum) + " mit " + fmtEuro(erster.gesamt) + " bis " +
-      fmtDatumLang(letzter.datum) + " mit " + fmtEuro(letzter.gesamt) +
+      "Verlauf " + titel + ", " + eintraege.length + " Einträge von " +
+      fmtDatumLang(erster.datum) + " mit " + fmtEuro(erster.wert) + " bis " +
+      fmtDatumLang(letzter.datum) + " mit " + fmtEuro(letzter.wert) +
       ", Veränderung " + mitVorzeichen(gesamtDelta) + " oder " + proz.format(prozDelta) + " Prozent.");
     el("verlaufNotiz").textContent =
       "Festgehalten wird ein Stand pro Tag — änderst du am selben Tag noch etwas, " +
       "wird der Eintrag überschrieben statt verdoppelt.";
   }
 
-  el("verlaufOeffnen").addEventListener("click", function () {
-    fenster.showModal();   // erst öffnen, dann zeichnen: vorher ist die Breite unbekannt
+  el("verlaufAuswahl").addEventListener("change", function () {
+    verlaufWahl = el("verlaufAuswahl").value;
     zeigeVerlauf();
+  });
+
+  el("verlaufOeffnen").addEventListener("click", function () {
+    verlaufOeffnen("gesamt");   // erst öffnen, dann zeichnen: vorher ist die Breite unbekannt
   });
   el("verlaufSchliessen").addEventListener("click", function () { fenster.close(); });
   fenster.addEventListener("click", function (ereignis) {
@@ -1869,19 +2269,15 @@
   window.addEventListener("resize", function () { if (fenster.open) zeichneDiagramm(); });
 
   // Schreibt alle Eingabefelder aus dem Zustand neu — nach Zurücksetzen
-  // oder nach dem Laden einer Sicherung.
+  // oder nachdem sich die Positionsliste geändert hat.
   function alleFelderSchreiben() {
     guthabenFeld.value = zustand.guthaben == null ? "" : zahl2.format(zustand.guthaben);
     pufferFeld.value = zahl2.format(zustand.puffer);
-    STANDARD_POSITIONEN.forEach(function (p) {
-      refs[p.id].input.value = zahl2.format(zustand.werte[p.id]);
-      refs["gew-" + p.id].input.value = prozZiel.format(zustand.gewichte[p.id]);
-    });
-    STANDARD_ALTLASTEN.forEach(function (a) {
-      refs["altlasten-" + a.id].input.value = zahl2.format(zustand.altlasten[a.id]);
-    });
-    STANDARD_BEOBACHTET.forEach(function (a) {
-      refs["beobachtet-" + a.id].input.value = zahl2.format(zustand.beobachtet[a.id]);
+    zustand.assets.forEach(function (a) {
+      var r = refs[a.id];
+      if (r && r.input) r.input.value = zahl2.format(a.wert || 0);
+      var g = refs["gew-" + a.id];
+      if (g && g.input) g.input.value = prozZiel.format(a.gewicht || 0);
     });
     sparrateFeld.value = zustand.sparrate == null ? "" : zahl2.format(zustand.sparrate);
     zeigeSparplan();
@@ -1967,9 +2363,7 @@
     var bisherigerVerlauf = zustand.verlauf;
     zustand = standardZustand();
     zustand.verlauf = bisherigerVerlauf;
-    alleFelderSchreiben();
-    aktualisieren();
-    markiereUngespeichert();
+    listeGeaendert(true);
     zeigeDelta();
   });
 
@@ -1977,7 +2371,8 @@
 
   tachoBauen();
   tachoSetzen(0);
-  zeigeSparplan();
+  baueListen();
+  alleFelderSchreiben();
   aktualisieren();
   zeigeDelta();
   zeigeSpeicherHinweis();
