@@ -33,6 +33,7 @@
     --k-pm: #199e70;
     --k-edel: #c98500;
     --k-krypto: #d55181;
+    --k-avd: #8046c8;
 
     /* Gruppen (Streifen im Gesamtvermögen) */
     --g-bespart: #9085e9;
@@ -295,6 +296,7 @@
   .p-pm { background: var(--k-pm); } .f-k-pm { fill: var(--k-pm); }
   .p-edel { background: var(--k-edel); } .f-k-edel { fill: var(--k-edel); }
   .p-krypto { background: var(--k-krypto); } .f-k-krypto { fill: var(--k-krypto); }
+  .p-avd { background: var(--k-avd); } .f-k-avd { fill: var(--k-avd); }
 
   /* Zählwerk wie ein alter Kilometerzähler */
   .tacho {
@@ -843,7 +845,8 @@
     { id: "etf",    name: "ETFs" },
     { id: "pm",     name: "Private Markets" },
     { id: "edel",   name: "Edelmetalle" },
-    { id: "krypto", name: "Krypto" }
+    { id: "krypto", name: "Krypto" },
+    { id: "avd",    name: "AVD" }        // Altersvorsorgedepot, kurz gehalten
   ];
 
   // Die Zielgewichte der besparten Positionen stehen fest und bleiben stehen —
@@ -864,7 +867,7 @@
     { id: "scgt",   name: "Small Cap Green Transition",   gruppe: "altlast",    klasse: "etf",    gewicht: 0 },
     { id: "apollo", name: "Apollo (Private Markets)",     gruppe: "beobachtet", klasse: "pm",     gewicht: 0 },
     { id: "eqt",    name: "EQT (Private Markets)",        gruppe: "beobachtet", klasse: "pm",     gewicht: 0 },
-    { id: "kommer", name: "Kommer ETF",                   gruppe: "vorsorge",   klasse: "etf",    gewicht: 0 }
+    { id: "kommer", name: "Kommer ETF",                   gruppe: "vorsorge",   klasse: "avd",    gewicht: 0 }
   ];
 
   // Stand der hinterlegten Zielgewichte. Ändert sich hier oben etwas, bekommt
@@ -875,12 +878,12 @@
   // Dasselbe für die Liste selbst: Bei neuem Stand werden Positionen, die hier
   // oben neu hinzugekommen sind, einmalig nachgetragen. Selbst gelöschte
   // Positionen bleiben danach gelöscht, selbst angelegte bleiben erhalten.
-  var ASSETS_STAND = "2026-10-21";
+  var ASSETS_STAND = "2026-10-22";
 
   var STANDARD_PUFFER = 10000;
   var SPEICHER = "zuflussverteiler.v1";
   var INVEST_TAG = 15;
-  var FASSUNG = "2026-10-22 a";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+  var FASSUNG = "2026-10-22 b";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
 
   var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -1012,6 +1015,14 @@
     // Neu hinzugekommene Standardpositionen einmalig nachtragen. Was der
     // Nutzer selbst gelöscht hat, bleibt gelöscht — deshalb nur bei neuem Stand.
     if (g.assetsStand !== ASSETS_STAND) {
+      // Das Altersvorsorgedepot hat seit dieser Fassung eine eigene
+      // Anlageklasse. Ein Stand von davor führt den Kommer-ETF noch unter
+      // "ETFs" — nur die vom Programm mitgebrachten Positionen werden
+      // umgehängt, selbst angelegte bleiben, wie sie eingestellt sind.
+      zustand.assets.forEach(function (a) {
+        var vorlage = STANDARD_ASSETS.filter(function (v) { return v.id === a.id; })[0];
+        if (vorlage && a.gruppe === "vorsorge" && a.klasse === "etf") a.klasse = "avd";
+      });
       STANDARD_ASSETS.forEach(function (s) {
         var da = zustand.assets.some(function (a) { return a.id === s.id; });
         if (!da) {
