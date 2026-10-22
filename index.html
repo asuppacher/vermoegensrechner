@@ -365,7 +365,8 @@
   details .card { border-radius: 0 0 var(--radius) var(--radius); margin-bottom: 0; background: var(--card-fest); -webkit-backdrop-filter: none; backdrop-filter: none; }
 
   /* Verlauf */
-  .knopf-verlauf { flex: 0 0 auto; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--unter); border-color: color-mix(in srgb, var(--unter) 35%, var(--line)); }
+  .knopf-verlauf { flex: 0 0 auto; padding: 9px 11px; line-height: 0; color: var(--unter); border-color: color-mix(in srgb, var(--unter) 35%, var(--line)); }
+  .knopf-verlauf svg { width: 20px; height: 15px; display: block; }
   dialog {
     width: min(640px, 100vw - 20px); max-height: 88vh; padding: 0; border: none;
     border-radius: var(--radius); color: var(--ink);
@@ -437,7 +438,7 @@
   <section class="card klassen" aria-label="Vermögen nach Anlageklassen">
     <div class="v-kopf">
       <div class="v-titel">Vermögen nach Anlageklassen</div>
-      <button type="button" class="knopf-verlauf" id="verlaufOeffnen">Verlauf</button>
+      <button type="button" class="knopf-verlauf" id="verlaufOeffnen" title="Verlauf" aria-label="Verlauf des Gesamtvermögens anzeigen"></button>
     </div>
     <div class="klassen-inhalt">
       <div class="torte-flaeche">
@@ -879,7 +880,7 @@
   var STANDARD_PUFFER = 10000;
   var SPEICHER = "zuflussverteiler.v1";
   var INVEST_TAG = 15;
-  var FASSUNG = "2026-10-21 a";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+  var FASSUNG = "2026-10-22 a";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
 
   var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -1258,19 +1259,25 @@
     return assetsDer(gruppe).reduce(function (s, a) { return s + (a.wert || 0); }, 0);
   }
 
-  // Kleiner Knopf, der den Verlauf dieser einen Position öffnet.
-  function verlaufKnopf(id, name) {
-    var knopf = neu("button", "pos-verlauf");
-    knopf.type = "button";
-    knopf.title = "Verlauf von " + name;
-    knopf.setAttribute("aria-label", "Verlauf von " + name + " anzeigen");
+  // Das Verlaufszeichen: eine kleine steigende Kurve. Steht oben am
+  // Vermögenskasten und an jeder einzelnen Position.
+  function verlaufSymbol() {
     var bild = svgKind("svg", { viewBox: "0 0 17 13", "aria-hidden": "true" });
     bild.append(svgKind("polyline", {
       points: "1,11 5.5,6 9,8.5 16,1.5",
       fill: "none", stroke: "currentColor", "stroke-width": "1.8",
       "stroke-linecap": "round", "stroke-linejoin": "round"
     }));
-    knopf.append(bild);
+    return bild;
+  }
+
+  // Kleiner Knopf, der den Verlauf dieser einen Position öffnet.
+  function verlaufKnopf(id, name) {
+    var knopf = neu("button", "pos-verlauf");
+    knopf.type = "button";
+    knopf.title = "Verlauf von " + name;
+    knopf.setAttribute("aria-label", "Verlauf von " + name + " anzeigen");
+    knopf.append(verlaufSymbol());
     knopf.addEventListener("click", function () { verlaufOeffnen(id); });
     return knopf;
   }
@@ -1702,6 +1709,12 @@
     { abPuffer: -Infinity, farbe: "#ff9086" } // tiefer: rot
   ];
 
+  // Welche Ampelstufe gilt für diesen Kontostand?
+  function ampelStufe(guthaben, puffer) {
+    var abstand = guthaben - (puffer || 0);
+    return AMPEL.filter(function (a) { return abstand >= a.abPuffer; })[0] || AMPEL[AMPEL.length - 1];
+  }
+
   function zeigeAmpel(guthaben, puffer) {
     var kasten = el("pufferKasten");
     var chip = el("pufferChip");
@@ -1711,8 +1724,7 @@
       return;
     }
     var abstand = guthaben - puffer;
-    var stufe = AMPEL.filter(function (a) { return abstand >= a.abPuffer; })[0] || AMPEL[AMPEL.length - 1];
-    kasten.style.setProperty("--rahmen", stufe.farbe);
+    kasten.style.setProperty("--rahmen", ampelStufe(guthaben, puffer).farbe);
     chip.hidden = false;
     var betrag = Math.abs(abstand);
     chip.textContent = "Puffer " + (abstand >= 0 ? "+" : "−") +
@@ -1991,6 +2003,44 @@
 
   var zeichnung = null; // Punkte des letzten Diagramms, für die Berührung
 
+  // Baut den senkrechten Ampel-Farbverlauf und gibt die Füllangabe zurück.
+  // Die Grenzen hängen am heutigen Cash-Puffer — er steht nicht im Verlauf,
+  // also gilt für alle Tage der Puffer, der gerade eingetragen ist.
+  // yVonBetrag rechnet einen Eurobetrag in die Höhe im Bild um; beim
+  // indexierten Vergleich ist das eine andere Skala als blanke Euro.
+  function ampelVerlauf(bild, yVonBetrag, oben, unten) {
+    var hoehe = unten - oben;
+    if (!(hoehe > 0)) return null;
+    var puffer = zustand.puffer || 0;
+    var blende = Math.max(1.5, hoehe * 0.04);   // Übergangszone in Bildpunkten
+
+    var kennung = "ampelverlauf";
+    var grad = svgKind("linearGradient", {
+      id: kennung, gradientUnits: "userSpaceOnUse", x1: 0, y1: oben, x2: 0, y2: unten
+    });
+
+    var letzterAnteil = 0;
+    function halt(y, farbe) {
+      var anteil = Math.min(1, Math.max(letzterAnteil, (y - oben) / hoehe));
+      letzterAnteil = anteil;
+      grad.append(svgKind("stop", { offset: (anteil * 100).toFixed(3) + "%", "stop-color": farbe }));
+    }
+
+    // AMPEL läuft von der höchsten Stufe (blau, oben) zur tiefsten (rot, unten).
+    halt(oben, AMPEL[0].farbe);
+    for (var i = 0; i < AMPEL.length - 1; i++) {
+      var grenze = yVonBetrag(puffer + AMPEL[i].abPuffer);
+      halt(grenze - blende, AMPEL[i].farbe);
+      halt(grenze + blende, AMPEL[i + 1].farbe);
+    }
+    halt(unten, AMPEL[AMPEL.length - 1].farbe);
+
+    var defs = svgKind("defs", {});
+    defs.append(grad);
+    bild.append(defs);
+    return "url(#" + kennung + ")";
+  }
+
   function zeichneDiagramm() {
     var bild = el("verlaufBild");
     var flaeche = el("verlaufFlaeche");
@@ -2072,26 +2122,50 @@
       legende.textContent = "Für einen Vergleich mit dem Gesamtvermögen braucht es " +
         "mindestens zwei Einträge mit einem Startwert über null.";
     }
+    if (verlaufWahl === "bank") {
+      legende.textContent += (legende.textContent ? " " : "") +
+        "Die Farbe der Linie folgt der Ampel um den Guthabenkasten — gerechnet " +
+        "gegen den heute eingetragenen Puffer von " + fmtEuroKurz(zustand.puffer || 0) + ".";
+    }
+
+    // Beim Bankguthaben trägt die Linie die Ampelfarben: Weil die Farbe allein
+    // am Betrag hängt und der Betrag die Höhe im Bild bestimmt, genügt ein
+    // senkrechter Farbverlauf — jeder Punkt der Kurve trifft dann von selbst
+    // seine Farbe. An den Grenzen wird kurz übergeblendet statt hart geschnitten.
+    var farbe = null;
+    if (verlaufWahl === "bank") {
+      farbe = ampelVerlauf(bild, function (betrag) {
+        return Y(indexiert ? indexWert(betrag, start) : betrag);
+      }, padT, basis);
+    }
 
     if (punkte.length > 1) {
       var flaechePfad = "M" + punkte[0].x + "," + basis +
         punkte.map(function (p) { return "L" + p.x + "," + p.y; }).join("") +
         "L" + punkte[punkte.length - 1].x + "," + basis + "Z";
-      bild.append(svgKind("path", { class: "vl-flaeche", d: flaechePfad }));
-      bild.append(svgKind("polyline", {
+      var flaeche2 = svgKind("path", { class: "vl-flaeche", d: flaechePfad });
+      var linie = svgKind("polyline", {
         class: "vl-linie",
         points: punkte.map(function (p) { return p.x + "," + p.y; }).join(" ")
-      }));
+      });
+      // Nur die Kurve selbst trägt die Farben; die Fläche darunter bliebe
+      // sonst ein unruhiger Querstreifen.
+      if (farbe) linie.style.stroke = farbe;
+      bild.append(flaeche2, linie);
     }
     if (punkte.length <= 30) {
       punkte.slice(0, -1).forEach(function (p) {
-        bild.append(svgKind("circle", { class: "vl-punkt", cx: p.x, cy: p.y, r: 3 }));
+        var kreis = svgKind("circle", { class: "vl-punkt", cx: p.x, cy: p.y, r: 3 });
+        if (farbe) kreis.style.fill = ampelStufe(p.e.wert, zustand.puffer).farbe;
+        bild.append(kreis);
       });
     }
 
     // Nur der letzte Punkt wird hervorgehoben und beschriftet
     var letzter = punkte[punkte.length - 1];
-    bild.append(svgKind("circle", { class: "vl-ende", cx: letzter.x, cy: letzter.y, r: 5 }));
+    var endpunkt = svgKind("circle", { class: "vl-ende", cx: letzter.x, cy: letzter.y, r: 5 });
+    if (farbe) endpunkt.style.fill = ampelStufe(letzter.e.wert, zustand.puffer).farbe;
+    bild.append(endpunkt);
     var beschriftung = svgKind("text", {
       class: "vl-schrift stark",
       x: Math.min(letzter.x + 8, padL + innenB),
@@ -2122,7 +2196,8 @@
     bild.append(kreuz, ring);
     bild.append(svgKind("rect", { x: 0, y: 0, width: breite, height: hoehe, fill: "transparent" }));
     zeichnung = { bild: bild, breite: breite, punkte: punkte, kreuz: kreuz, ring: ring,
-                  oben: padT, unten: basis, indexiert: indexiert, start: start };
+                  oben: padT, unten: basis, indexiert: indexiert, start: start,
+                  ampel: verlaufWahl === "bank" };
   }
 
   function beruehrung(ereignis) {
@@ -2139,6 +2214,9 @@
     zeichnung.ring.setAttribute("cx", naechster.x);
     zeichnung.ring.setAttribute("cy", naechster.y);
     zeichnung.ring.setAttribute("opacity", 1);
+    if (zeichnung.ampel) {
+      zeichnung.ring.style.fill = ampelStufe(naechster.e.wert, zustand.puffer).farbe;
+    }
 
     var tipp = el("verlaufTooltip");
     tipp.textContent = fmtDatumLang(naechster.e.datum) + " · " + fmtEuro(naechster.e.wert) +
@@ -2259,6 +2337,7 @@
     zeigeVerlauf();
   });
 
+  el("verlaufOeffnen").append(verlaufSymbol());
   el("verlaufOeffnen").addEventListener("click", function () {
     verlaufOeffnen("gesamt");   // erst öffnen, dann zeichnen: vorher ist die Breite unbekannt
   });
