@@ -199,7 +199,6 @@
   .pos-verlauf:hover, .pos-verlauf:focus-visible { color: var(--ink); border-color: var(--line); }
   .v-auswahl { padding-top: 0; }
   .v-auswahl select { max-width: 15em; }
-  .vl-vergleich { fill: none; stroke: var(--ink-faint); stroke-width: 1.6; stroke-dasharray: 5 4; opacity: .75; }
 
   /* Ampelrahmen um den Kasten mit dem Bankguthaben */
   .puffer-kasten {
@@ -883,14 +882,13 @@
   var STANDARD_PUFFER = 10000;
   var SPEICHER = "zuflussverteiler.v1";
   var INVEST_TAG = 15;
-  var FASSUNG = "2026-10-25 a";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+  var FASSUNG = "2026-11-04 a";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
 
   var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
   var zahl2 = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var proz = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var prozZiel = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
-  var zahl0 = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: 1 });
 
   function fmtEuro(n) { return eur.format(n || 0); }
   function fmtEuroKurz(n) { return eurKurz.format(n || 0); }
@@ -2030,11 +2028,21 @@
 
   var zeichnung = null; // Punkte des letzten Diagramms, für die Berührung
 
+  // Jede Reihe trägt die Farbe ihrer Anlageklasse — dieselbe wie im Ring oben.
+  // Das Gesamtvermögen bekommt Weiß, damit es nicht mit dem Blau des
+  // Bankguthabens verwechselt wird; das Bankguthaben selbst wird nicht hier,
+  // sondern über den Ampelverlauf eingefärbt.
+  function reihenFarbe(schluessel) {
+    if (schluessel === "gesamt") return "var(--ink)";
+    if (schluessel === "bank") return "var(--k-bank)";
+    var a = assetVon(schluessel);
+    return a && istKlasse(a.klasse) ? "var(--k-" + a.klasse + ")" : "var(--ink-mute)";
+  }
+
   // Baut den senkrechten Ampel-Farbverlauf und gibt die Füllangabe zurück.
   // Die Grenzen hängen am heutigen Cash-Puffer — er steht nicht im Verlauf,
   // also gilt für alle Tage der Puffer, der gerade eingetragen ist.
-  // yVonBetrag rechnet einen Eurobetrag in die Höhe im Bild um; beim
-  // indexierten Vergleich ist das eine andere Skala als blanke Euro.
+  // yVonBetrag rechnet einen Eurobetrag in die Höhe im Bild um.
   function ampelVerlauf(bild, yVonBetrag, oben, unten) {
     var hoehe = unten - oben;
     if (!(hoehe > 0)) return null;
@@ -2073,11 +2081,6 @@
     var flaeche = el("verlaufFlaeche");
     var legende = el("verlaufLegende");
     var eintraege = reiheVon(verlaufWahl);
-    // Beim Vergleich einer einzelnen Position wird nicht in Euro gezeichnet,
-    // sondern indexiert: beide Reihen starten bei 100. Nur so lassen sich
-    // 1.200 € Gold und 60.000 € Gesamtvermögen in einem Bild vergleichen.
-    var vergleich = verlaufWahl !== "gesamt" ? reiheVon("gesamt") : null;
-    var indexiert = !!vergleich && eintraege.length > 1;
     bild.textContent = "";
     legende.textContent = "";
     zeichnung = null;
@@ -2092,22 +2095,7 @@
     bild.setAttribute("width", breite);
     bild.setAttribute("height", hoehe);
 
-    // Indexierung: Startwert = 100. Ein Startwert von 0 lässt sich nicht
-    // indexieren — dann bleibt es beim Euro-Bild.
-    var start = eintraege[0].wert;
-    if (indexiert && !(Math.abs(start) > 0.005)) indexiert = false;
-    var vergleichReihe = [];
-    if (indexiert) {
-      var vonDatum = eintraege[0].datum;
-      vergleichReihe = vergleich.filter(function (v) { return v.datum >= vonDatum; });
-      if (vergleichReihe.length < 2 || !(Math.abs(vergleichReihe[0].wert) > 0.005)) indexiert = false;
-    }
-    function indexWert(w, bezug) { return w / bezug * 100; }
-
-    var werte = eintraege.map(function (e) { return indexiert ? indexWert(e.wert, start) : e.wert; });
-    if (indexiert) {
-      werte = werte.concat(vergleichReihe.map(function (v) { return indexWert(v.wert, vergleichReihe[0].wert); }));
-    }
+    var werte = eintraege.map(function (e) { return e.wert; });
     var yMin = Math.min.apply(null, werte), yMax = Math.max.apply(null, werte);
     if (yMax - yMin < 1) {
       var luft = Math.max(100, Math.abs(yMax) * 0.02);
@@ -2127,44 +2115,27 @@
       var y = Y(v);
       bild.append(svgKind("line", { class: "vl-netz", x1: padL, y1: y, x2: padL + innenB, y2: y }));
       var t = svgKind("text", { class: "vl-schrift", x: padL - 8, y: y + 4, "text-anchor": "end" });
-      t.textContent = indexiert ? zahl0.format(v) : fmtEuroKurz(v);
+      t.textContent = fmtEuroKurz(v);
       bild.append(t);
     });
 
     var punkte = eintraege.map(function (e, i) {
-      return { x: X(zeiten[i]), y: Y(indexiert ? indexWert(e.wert, start) : e.wert), e: e };
+      return { x: X(zeiten[i]), y: Y(e.wert), e: e };
     });
     var basis = padT + innenH;
 
-    // Vergleichslinie: das Gesamtvermögen, blass und gestrichelt
-    if (indexiert) {
-      var vp = vergleichReihe.map(function (v) {
-        return X(alsDatum(v.datum).getTime()) + "," + Y(indexWert(v.wert, vergleichReihe[0].wert));
-      });
-      bild.append(svgKind("polyline", { class: "vl-vergleich", points: vp.join(" ") }));
-      legende.textContent = "Entwicklung seit dem ersten Eintrag, Start = 100. " +
-        "Durchgezogen: " + nameVon(verlaufWahl) + ". Gestrichelt: Gesamtvermögen. " +
-        "Die Zahlen darunter stehen weiter in Euro.";
-    } else if (verlaufWahl !== "gesamt") {
-      legende.textContent = "Für einen Vergleich mit dem Gesamtvermögen braucht es " +
-        "mindestens zwei Einträge mit einem Startwert über null.";
-    }
     if (verlaufWahl === "bank") {
-      legende.textContent += (legende.textContent ? " " : "") +
-        "Die Farbe der Linie folgt der Ampel um den Guthabenkasten — gerechnet " +
-        "gegen den heute eingetragenen Puffer von " + fmtEuroKurz(zustand.puffer || 0) + ".";
+      legende.textContent = "Die Farbe der Linie folgt der Ampel um den Guthabenkasten — " +
+        "gerechnet gegen den heute eingetragenen Puffer von " + fmtEuroKurz(zustand.puffer || 0) + ".";
     }
 
     // Beim Bankguthaben trägt die Linie die Ampelfarben: Weil die Farbe allein
     // am Betrag hängt und der Betrag die Höhe im Bild bestimmt, genügt ein
     // senkrechter Farbverlauf — jeder Punkt der Kurve trifft dann von selbst
     // seine Farbe. An den Grenzen wird kurz übergeblendet statt hart geschnitten.
-    var farbe = null;
-    if (verlaufWahl === "bank") {
-      farbe = ampelVerlauf(bild, function (betrag) {
-        return Y(indexiert ? indexWert(betrag, start) : betrag);
-      }, padT, basis);
-    }
+    // Alle anderen Reihen tragen schlicht die Farbe ihrer Anlageklasse.
+    var ampel = verlaufWahl === "bank";
+    var farbe = ampel ? ampelVerlauf(bild, Y, padT, basis) : reihenFarbe(verlaufWahl);
 
     if (punkte.length > 1) {
       var flaechePfad = "M" + punkte[0].x + "," + basis +
@@ -2175,15 +2146,16 @@
         class: "vl-linie",
         points: punkte.map(function (p) { return p.x + "," + p.y; }).join(" ")
       });
-      // Nur die Kurve selbst trägt die Farben; die Fläche darunter bliebe
-      // sonst ein unruhiger Querstreifen.
-      if (farbe) linie.style.stroke = farbe;
+      linie.style.stroke = farbe;
+      // Beim Ampelverlauf bliebe die Fläche ein unruhiger Querstreifen —
+      // sie bekommt dort die ruhige Grundfarbe des Bankguthabens.
+      flaeche2.style.fill = ampel ? reihenFarbe("bank") : farbe;
       bild.append(flaeche2, linie);
     }
     if (punkte.length <= 30) {
       punkte.slice(0, -1).forEach(function (p) {
         var kreis = svgKind("circle", { class: "vl-punkt", cx: p.x, cy: p.y, r: 3 });
-        if (farbe) kreis.style.fill = ampelStufe(p.e.wert, zustand.puffer).farbe;
+        kreis.style.fill = ampel ? ampelStufe(p.e.wert, zustand.puffer).farbe : farbe;
         bild.append(kreis);
       });
     }
@@ -2191,7 +2163,7 @@
     // Nur der letzte Punkt wird hervorgehoben und beschriftet
     var letzter = punkte[punkte.length - 1];
     var endpunkt = svgKind("circle", { class: "vl-ende", cx: letzter.x, cy: letzter.y, r: 5 });
-    if (farbe) endpunkt.style.fill = ampelStufe(letzter.e.wert, zustand.puffer).farbe;
+    endpunkt.style.fill = ampel ? ampelStufe(letzter.e.wert, zustand.puffer).farbe : farbe;
     bild.append(endpunkt);
     var beschriftung = svgKind("text", {
       class: "vl-schrift stark",
@@ -2199,9 +2171,7 @@
       y: Math.max(padT - 6, letzter.y - 12),
       "text-anchor": letzter.x > padL + innenB * 0.6 ? "end" : "start"
     });
-    beschriftung.textContent = indexiert
-      ? zahl0.format(indexWert(letzter.e.wert, start))
-      : fmtEuroKurz(letzter.e.wert);
+    beschriftung.textContent = fmtEuroKurz(letzter.e.wert);
     bild.append(beschriftung);
 
     // Datumsbeschriftung: erster und letzter Eintrag
@@ -2223,8 +2193,7 @@
     bild.append(kreuz, ring);
     bild.append(svgKind("rect", { x: 0, y: 0, width: breite, height: hoehe, fill: "transparent" }));
     zeichnung = { bild: bild, breite: breite, punkte: punkte, kreuz: kreuz, ring: ring,
-                  oben: padT, unten: basis, indexiert: indexiert, start: start,
-                  ampel: verlaufWahl === "bank" };
+                  oben: padT, unten: basis, ampel: ampel, farbe: farbe };
   }
 
   function beruehrung(ereignis) {
@@ -2241,15 +2210,12 @@
     zeichnung.ring.setAttribute("cx", naechster.x);
     zeichnung.ring.setAttribute("cy", naechster.y);
     zeichnung.ring.setAttribute("opacity", 1);
-    if (zeichnung.ampel) {
-      zeichnung.ring.style.fill = ampelStufe(naechster.e.wert, zustand.puffer).farbe;
-    }
+    zeichnung.ring.style.fill = zeichnung.ampel
+      ? ampelStufe(naechster.e.wert, zustand.puffer).farbe
+      : zeichnung.farbe;
 
     var tipp = el("verlaufTooltip");
-    tipp.textContent = fmtDatumLang(naechster.e.datum) + " · " + fmtEuro(naechster.e.wert) +
-      (zeichnung.indexiert
-        ? " · " + zahl0.format(naechster.e.wert / zeichnung.start * 100)
-        : "");
+    tipp.textContent = fmtDatumLang(naechster.e.datum) + " · " + fmtEuro(naechster.e.wert);
     tipp.classList.add("an");
     var massstab = rahmen.width / zeichnung.breite;
     tipp.style.left = Math.min(Math.max(naechster.x * massstab, 60), rahmen.width - 60) + "px";
