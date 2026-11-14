@@ -34,6 +34,7 @@
     --k-edel: #c98500;
     --k-krypto: #d55181;
     --k-avd: #8046c8;
+    --k-gmetf: #9fb8c4;
 
     /* Gruppen (Streifen im Gesamtvermögen) */
     --g-bespart: #9085e9;
@@ -41,6 +42,7 @@
     --g-beob: #008300;
     --g-bank: #3987e5;
     --g-vors: #8a9630;
+    --g-geld: #9fb8c4;   /* dasselbe Silberblau wie die Klasse GM-ETF */
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -296,6 +298,7 @@
   .p-edel { background: var(--k-edel); } .f-k-edel { fill: var(--k-edel); }
   .p-krypto { background: var(--k-krypto); } .f-k-krypto { fill: var(--k-krypto); }
   .p-avd { background: var(--k-avd); } .f-k-avd { fill: var(--k-avd); }
+  .p-gmetf { background: var(--k-gmetf); } .f-k-gmetf { fill: var(--k-gmetf); }
 
   /* Zählwerk wie ein alter Kilometerzähler */
   .tacho {
@@ -352,6 +355,7 @@
   .f-beob { background: var(--g-beob); }
   .f-bank { background: var(--g-bank); }
   .f-vors { background: var(--g-vors); }
+  .f-geld { background: var(--g-geld); }
 
   details { margin-bottom: 14px; }
   summary {
@@ -418,6 +422,7 @@
   .notiz { font-size: 12.5px; color: var(--ink-mute); margin: 10px 0 0; }
   .notiz.warn { color: var(--warn); }
   .notiz.merken { color: var(--ueber); }
+  .notiz.tun { color: var(--gut); font-weight: 600; }
   .fuss { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 18px; font-size: 12.5px; color: var(--ink-faint); }
   button {
     font: inherit; font-size: 13px; padding: 9px 14px; border-radius: 10px;
@@ -532,6 +537,18 @@
     </div>
   </section>
 
+  <section aria-label="Geldmarkt">
+    <div class="card">
+      <h2>Geldmarkt (risikoarm)</h2>
+      <p class="notiz" style="margin:-4px 0 6px">Wird nicht nach Zielgewicht bespart:
+        Für je volle 50.000 € im risikobehafteten Teil gehören 1.000 € hinein.</p>
+      <div id="g-geldmarkt"></div>
+      <div class="summe-zeile"><span>Summe</span><span id="s-geldmarkt">—</span></div>
+      <p class="notiz" id="gmStand"></p>
+      <p class="notiz" id="gmTun"></p>
+    </div>
+  </section>
+
   <section class="nebenrechnung" aria-label="Altersvorsorgedepot">
     <div class="card">
       <h2>Altersvorsorgedepot</h2>
@@ -607,6 +624,10 @@
   var SPARPLAN_MONATE = 12;  // der Sparplan wird für zwölf Monate im Voraus gerechnet
   var SPARPLAN_SCHRITT = 5;  // Sparraten auf volle 5 €
   var SPARPLAN_MIN = 10;     // darunter lohnt kein eigener Sparplan
+
+  var GM_STUFE = 50000;      // je 50.000 € im risikobehafteten Teil ...
+  var GM_RATE = 1000;        // ... gehören 1.000 € in den Geldmarkt-ETF
+  var GM_KONTO_PROZENT = 50; // so viel Prozent des Puffers müssen danach stehen bleiben
 
   /**
    * Freier Betrag am 15.:
@@ -807,6 +828,58 @@
     };
   }
 
+  /**
+   * Geldmarkt-ETF: der risikoarme Gegenpol zum Depot.
+   *
+   * Die Regel hängt nicht am Kalender, sondern an einer Schwelle: Für jede
+   * vollen 50.000 € im risikobehafteten Teil des Vermögens gehören 1.000 € in
+   * den Geldmarkt-ETF. Verglichen wird dabei das Soll mit dem tatsächlichen
+   * Bestand, nicht mit einer Liste getätigter Einzahlungen. Daraus ergeben
+   * sich zwei Dinge von selbst:
+   *   - Ist der Bestand durch Kursgewinne schon über der nächsten Stufe,
+   *     steht beim Überschreiten der Schwelle nichts an.
+   *   - Wurde der Topf geplündert, wird die ganze Lücke wieder aufgefüllt.
+   *
+   * Eingezahlt wird nur, soweit danach noch genug auf dem Konto steht: die
+   * Hälfte des Cash-Puffers. Reicht es nicht für alles, wird in ganzen Raten
+   * eingezahlt und der Rest später nachgeholt.
+   *
+   * risikoVermoegen: alles außer Bankguthaben, Altersvorsorgedepot und dem
+   * Geldmarkt-ETF selbst — er ist ja gerade der risikoarme Teil.
+   */
+  function berechneGeldmarkt(risikoVermoegen, bestand, guthaben, puffer) {
+    function cent(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+
+    var risiko = Math.max(0, cent(risikoVermoegen));
+    var wert = Math.max(0, cent(bestand));
+    var konto = cent(guthaben);
+    var mindestKonto = Math.max(0, cent((Number(puffer) || 0) * GM_KONTO_PROZENT / 100));
+
+    var stufen = Math.floor(risiko / GM_STUFE);
+    var soll = stufen * GM_RATE;
+    var fehlbetrag = Math.max(0, cent(soll - wert));
+    var verfuegbar = Math.max(0, cent(konto - mindestKonto));
+
+    // Alles auf einmal, wenn das Konto es hergibt; sonst in ganzen Raten.
+    var jetzt = verfuegbar >= fehlbetrag
+      ? fehlbetrag
+      : Math.floor(verfuegbar / GM_RATE) * GM_RATE;
+
+    return {
+      risiko: risiko,
+      stufen: stufen,
+      soll: soll,
+      bestand: wert,
+      fehlbetrag: fehlbetrag,
+      jetzt: jetzt,
+      aufgeschoben: Math.max(0, cent(fehlbetrag - jetzt)),
+      mindestKonto: mindestKonto,
+      kontoFuerRest: cent(mindestKonto + fehlbetrag),
+      naechsteStufe: (stufen + 1) * GM_STUFE,
+      bisNaechsteStufe: Math.max(0, cent((stufen + 1) * GM_STUFE - risiko))
+    };
+  }
+
   global.Zuflussverteiler = {
     SCHRITT: SCHRITT,
     MIN_KAUF: MIN_KAUF,
@@ -815,7 +888,11 @@
     SPARPLAN_MIN: SPARPLAN_MIN,
     berechneFreienBetrag: berechneFreienBetrag,
     berechneVerteilung: berechneVerteilung,
-    berechneSparplan: berechneSparplan
+    berechneSparplan: berechneSparplan,
+    GM_STUFE: GM_STUFE,
+    GM_RATE: GM_RATE,
+    GM_KONTO_PROZENT: GM_KONTO_PROZENT,
+    berechneGeldmarkt: berechneGeldmarkt
   };
 })(typeof globalThis !== "undefined" ? globalThis : this);
 /* #endregion verteilung */
@@ -834,13 +911,20 @@
   //   klasse — was sie ihrer Art nach ist (fürs Tortendiagramm)
   // Über "Positionen ändern" lässt sich die Liste selbst bearbeiten; sie wird
   // deshalb im Zustand geführt und nicht fest im Programm.
+  // risiko: zählt die Gruppe zum risikobehafteten Teil? Daran hängt die
+  // Schwelle für den Geldmarkt-ETF — Bankguthaben, Altersvorsorgedepot und
+  // der Geldmarkt-ETF selbst bleiben draußen.
   var GRUPPEN = [
-    { id: "bespart",    kurz: "Bespart",     name: "Besparte Positionen",        farbe: "f-bespart" },
-    { id: "altlast",    kurz: "Altlast",     name: "Altlasten",                  farbe: "f-alt" },
-    { id: "beobachtet", kurz: "Beobachten",  name: "Beobachten",                 farbe: "f-beob" },
-    { id: "vorsorge",   kurz: "Vorsorge",    name: "Altersvorsorgedepot",        farbe: "f-vors" }
+    { id: "bespart",    kurz: "Bespart",     name: "Besparte Positionen",  farbe: "f-bespart", risiko: true },
+    { id: "altlast",    kurz: "Altlast",     name: "Altlasten",            farbe: "f-alt",     risiko: true },
+    { id: "beobachtet", kurz: "Beobachten",  name: "Beobachten",           farbe: "f-beob",    risiko: true },
+    { id: "geldmarkt",  kurz: "Geldmarkt",   name: "Geldmarkt",            farbe: "f-geld",    risiko: false },
+    { id: "vorsorge",   kurz: "Vorsorge",    name: "Altersvorsorgedepot",  farbe: "f-vors",    risiko: false }
   ];
+  // Reihenfolge = Reihenfolge im Ring. Der Geldmarkt-ETF steht gleich hinter
+  // dem Bankguthaben: beide zusammen sind der risikoarme Teil.
   var KLASSEN = [
+    { id: "gmetf",  name: "GM-ETF" },
     { id: "etf",    name: "ETFs" },
     { id: "pm",     name: "Private Markets" },
     { id: "edel",   name: "Edelmetalle" },
@@ -866,6 +950,7 @@
     { id: "scgt",   name: "Small Cap Green Transition",   gruppe: "altlast",    klasse: "etf",    gewicht: 0 },
     { id: "apollo", name: "Apollo (Private Markets)",     gruppe: "beobachtet", klasse: "pm",     gewicht: 0 },
     { id: "eqt",    name: "EQT (Private Markets)",        gruppe: "beobachtet", klasse: "pm",     gewicht: 0 },
+    { id: "gm",     name: "Geldmarkt-ETF",                gruppe: "geldmarkt",  klasse: "gmetf",  gewicht: 0 },
     { id: "kommer", name: "Kommer ETF",                   gruppe: "vorsorge",   klasse: "avd",    gewicht: 0 }
   ];
 
@@ -877,12 +962,12 @@
   // Dasselbe für die Liste selbst: Bei neuem Stand werden Positionen, die hier
   // oben neu hinzugekommen sind, einmalig nachgetragen. Selbst gelöschte
   // Positionen bleiben danach gelöscht, selbst angelegte bleiben erhalten.
-  var ASSETS_STAND = "2026-10-22";
+  var ASSETS_STAND = "2026-11-14";
 
   var STANDARD_PUFFER = 10000;
   var SPEICHER = "zuflussverteiler.v1";
   var INVEST_TAG = 15;
-  var FASSUNG = "2026-11-04 a";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+  var FASSUNG = "2026-11-14 a";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
 
   var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -1382,7 +1467,7 @@
     }
     bespart.forEach(function (p) { liste.append(positionsZeile(p)); });
 
-    ["altlast", "beobachtet", "vorsorge"].forEach(function (gruppe) {
+    ["altlast", "beobachtet", "geldmarkt", "vorsorge"].forEach(function (gruppe) {
       var kasten = el("g-" + gruppe);
       kasten.textContent = "";
       var drin = assetsDer(gruppe);
@@ -1757,6 +1842,41 @@
   }
 
   // ---- Rechnen und anzeigen --------------------------------------------
+  // Zeigt an, wo der Geldmarkt-ETF gegenüber seiner Schwelle steht und was
+  // daraus gerade folgt.
+  function zeigeGeldmarkt(gm, hatGuthaben) {
+    var stand = el("gmStand");
+    var tun = el("gmTun");
+
+    stand.textContent =
+      "Risikobehaftet " + fmtEuroKurz(gm.risiko) + " · " +
+      (gm.stufen === 1 ? "1 Stufe" : gm.stufen + " Stufen") + " à " + fmtEuroKurz(ZV.GM_RATE) +
+      " · Soll " + fmtEuroKurz(gm.soll) + " · Bestand " + fmtEuroKurz(gm.bestand) + ". " +
+      "Noch " + fmtEuroKurz(gm.bisNaechsteStufe) + " bis " + fmtEuroKurz(gm.naechsteStufe) + ".";
+
+    if (!hatGuthaben) {
+      tun.className = "notiz";
+      tun.textContent = "Für die Einzahlung fehlt das Bankguthaben.";
+    } else if (gm.fehlbetrag <= 0) {
+      tun.className = "notiz";
+      tun.textContent = gm.bestand > gm.soll
+        ? "Nichts zu tun — der Bestand liegt bereits über dem Soll."
+        : "Nichts zu tun.";
+    } else if (gm.jetzt >= gm.fehlbetrag) {
+      tun.className = "notiz tun";
+      tun.textContent = "Jetzt " + fmtEuroKurz(gm.jetzt) + " einzahlen.";
+    } else if (gm.jetzt > 0) {
+      tun.className = "notiz tun";
+      tun.textContent = "Jetzt " + fmtEuroKurz(gm.jetzt) + " einzahlen; " +
+        fmtEuroKurz(gm.aufgeschoben) + " bleiben offen, bis wieder mehr auf dem Konto ist.";
+    } else {
+      tun.className = "notiz merken";
+      tun.textContent = fmtEuroKurz(gm.fehlbetrag) + " offen, aufgeschoben: Nach der Einzahlung müssen " +
+        fmtEuroKurz(gm.mindestKonto) + " auf dem Konto bleiben (die Hälfte des Puffers), " +
+        "dafür bräuchte es " + fmtEuroKurz(gm.kontoFuerRest) + ".";
+    }
+  }
+
   // Die neun besparten Positionen, so wie die Rechenlogik sie erwartet.
   function zielPositionen() {
     return assetsDer("bespart").map(function (p) {
@@ -1769,7 +1889,17 @@
 
     var hatGuthaben = zustand.guthaben != null;
     zeigeAmpel(zustand.guthaben, zustand.puffer || 0);
-    var frei = ZV.berechneFreienBetrag(zustand.guthaben || 0, zustand.puffer || 0);
+
+    // Geldmarkt-ETF zuerst: Die Einzahlung hat Vorrang vor den Zusatzkäufen
+    // und geht deshalb vom Guthaben ab, bevor der freie Betrag gerechnet wird.
+    var risiko = GRUPPEN.reduce(function (summe, g) {
+      return g.risiko ? summe + summeDer(g.id) : summe;
+    }, 0);
+    var gm = ZV.berechneGeldmarkt(risiko, summeDer("geldmarkt"),
+                                  zustand.guthaben || 0, zustand.puffer || 0);
+    zeigeGeldmarkt(gm, hatGuthaben);
+
+    var frei = ZV.berechneFreienBetrag((zustand.guthaben || 0) - gm.jetzt, zustand.puffer || 0);
     var e = ZV.berechneVerteilung(frei, positionen);
 
     // Freier Betrag
@@ -1797,6 +1927,9 @@
     // Restbegründung / ausgeschlossene Positionen
     var notiz = el("restNotiz");
     var teile = [];
+    if (gm.jetzt > 0) {
+      teile.push(fmtEuroKurz(gm.jetzt) + " sind vorab für den Geldmarkt-ETF abgezogen — der hat Vorrang.");
+    }
     if (frei > 0 && e.rest > 0) {
       if (e.verplant === 0) teile.push("Nichts verplant: " + fmtEuroKurz(frei) + " reicht nicht für einen Kauf von mindestens " + fmtEuroKurz(200) + ".");
       else teile.push(fmtEuroKurz(e.rest) + " bleiben liegen — sie lassen sich nicht in 50-€-Schritten über dem Mindestbetrag unterbringen.");
@@ -1847,7 +1980,7 @@
 
     // Nebengruppen: Felder nachziehen und Summen anschreiben
     var summen = { bespart: e.basis };
-    ["altlast", "beobachtet", "vorsorge"].forEach(function (gruppe) {
+    ["altlast", "beobachtet", "geldmarkt", "vorsorge"].forEach(function (gruppe) {
       assetsDer(gruppe).forEach(function (a) {
         var r = refs[a.id];
         if (r && document.activeElement !== r.input) r.input.value = zahl2.format(a.wert || 0);
