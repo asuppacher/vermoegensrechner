@@ -541,8 +541,7 @@
     <div class="card">
       <h2>Geldmarkt (risikoarm)</h2>
       <p class="notiz" style="margin:-4px 0 6px">Wird nicht nach Zielgewicht bespart:
-        1.000 € gehören von Anfang an hinein, für je weitere volle 50.000 € im
-        risikobehafteten Teil kommen 1.000 € dazu.</p>
+        Für je volle 50.000 € im risikobehafteten Teil gehören 1.000 € hinein.</p>
       <div id="g-geldmarkt"></div>
       <div class="summe-zeile"><span>Summe</span><span id="s-geldmarkt">—</span></div>
       <p class="notiz" id="gmStand"></p>
@@ -832,11 +831,9 @@
   /**
    * Geldmarkt-ETF: der risikoarme Gegenpol zum Depot.
    *
-   * Die Regel hängt nicht am Kalender, sondern an Schwellen: 1.000 € gehören
-   * von Anfang an hinein, und für jede weiteren vollen 50.000 € im
-   * risikobehafteten Teil des Vermögens kommen 1.000 € dazu. Bei 0 € Risiko
-   * ist das Soll also 1.000 €, bei 50.000 € sind es 2.000 €, bei 160.000 €
-   * sind es 4.000 €. Verglichen wird dabei das Soll mit dem tatsächlichen
+   * Die Regel hängt nicht am Kalender, sondern an einer Schwelle: Für jede
+   * vollen 50.000 € im risikobehafteten Teil des Vermögens gehören 1.000 € in
+   * den Geldmarkt-ETF. Verglichen wird dabei das Soll mit dem tatsächlichen
    * Bestand, nicht mit einer Liste getätigter Einzahlungen. Daraus ergeben
    * sich zwei Dinge von selbst:
    *   - Ist der Bestand durch Kursgewinne schon über der nächsten Stufe,
@@ -858,8 +855,7 @@
     var konto = cent(guthaben);
     var mindestKonto = Math.max(0, cent((Number(puffer) || 0) * GM_KONTO_PROZENT / 100));
 
-    var ueberschritten = Math.floor(risiko / GM_STUFE);  // überschrittene Schwellen
-    var stufen = ueberschritten + 1;                     // plus der Grundbetrag
+    var stufen = Math.floor(risiko / GM_STUFE);
     var soll = stufen * GM_RATE;
     var fehlbetrag = Math.max(0, cent(soll - wert));
     var verfuegbar = Math.max(0, cent(konto - mindestKonto));
@@ -879,8 +875,8 @@
       aufgeschoben: Math.max(0, cent(fehlbetrag - jetzt)),
       mindestKonto: mindestKonto,
       kontoFuerRest: cent(mindestKonto + fehlbetrag),
-      naechsteStufe: (ueberschritten + 1) * GM_STUFE,
-      bisNaechsteStufe: Math.max(0, cent((ueberschritten + 1) * GM_STUFE - risiko))
+      naechsteStufe: (stufen + 1) * GM_STUFE,
+      bisNaechsteStufe: Math.max(0, cent((stufen + 1) * GM_STUFE - risiko))
     };
   }
 
@@ -971,7 +967,7 @@
   var STANDARD_PUFFER = 10000;
   var SPEICHER = "zuflussverteiler.v1";
   var INVEST_TAG = 15;
-  var FASSUNG = "2026-11-18 a";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+  var FASSUNG = "2026-11-24 a";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
 
   var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
