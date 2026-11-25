@@ -840,6 +840,13 @@
    *     steht beim Überschreiten der Schwelle nichts an.
    *   - Wurde der Topf geplündert, wird die ganze Lücke wieder aufgefüllt.
    *
+   * Gezählt wird dabei in ganzen Raten, nicht auf den Euro genau: Maßgeblich
+   * ist, wie viele volle 1.000 € schon drinliegen. Bei 350 € sind das null
+   * Raten — fällig wird dann eine ganze, nicht die Differenz von 650 €; der
+   * Bestand steht danach bei 1.350 €. Bei 1.100 € ist die erste Rate dagegen
+   * beisammen, da kommt nichts hinzu. Eingezahlt wird also immer in
+   * Tausendern, nie ein krummer Rest.
+   *
    * Eingezahlt wird nur, soweit danach noch genug auf dem Konto steht: die
    * Hälfte des Cash-Puffers. Reicht es nicht für alles, wird in ganzen Raten
    * eingezahlt und der Rest später nachgeholt.
@@ -857,7 +864,9 @@
 
     var stufen = Math.floor(risiko / GM_STUFE);
     var soll = stufen * GM_RATE;
-    var fehlbetrag = Math.max(0, cent(soll - wert));
+    var vorhandeneRaten = Math.floor(wert / GM_RATE);
+    var fehlendeRaten = Math.max(0, stufen - vorhandeneRaten);
+    var fehlbetrag = fehlendeRaten * GM_RATE;
     var verfuegbar = Math.max(0, cent(konto - mindestKonto));
 
     // Alles auf einmal, wenn das Konto es hergibt; sonst in ganzen Raten.
@@ -870,6 +879,8 @@
       stufen: stufen,
       soll: soll,
       bestand: wert,
+      vorhandeneRaten: vorhandeneRaten,
+      fehlendeRaten: fehlendeRaten,
       fehlbetrag: fehlbetrag,
       jetzt: jetzt,
       aufgeschoben: Math.max(0, cent(fehlbetrag - jetzt)),
@@ -967,7 +978,7 @@
   var STANDARD_PUFFER = 10000;
   var SPEICHER = "zuflussverteiler.v1";
   var INVEST_TAG = 15;
-  var FASSUNG = "2026-11-24 a";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
+  var FASSUNG = "2026-11-25 a";   // steht unten auf der Seite: zeigt, welche Fassung geladen ist
 
   var eur = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   var eurKurz = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -1848,10 +1859,13 @@
     var stand = el("gmStand");
     var tun = el("gmTun");
 
+    function raten(n) { return n === 1 ? "1 Rate" : n + " Raten"; }
     stand.textContent =
       "Risikobehaftet " + fmtEuroKurz(gm.risiko) + " · " +
-      (gm.stufen === 1 ? "1 Stufe" : gm.stufen + " Stufen") + " à " + fmtEuroKurz(ZV.GM_RATE) +
-      " · Soll " + fmtEuroKurz(gm.soll) + " · Bestand " + fmtEuroKurz(gm.bestand) + ". " +
+      (gm.stufen === 0
+        ? "noch keine Rate fällig"
+        : "Soll " + raten(gm.stufen) + " à " + fmtEuroKurz(ZV.GM_RATE)) +
+      " · drin " + fmtEuro(gm.bestand) + " = " + raten(gm.vorhandeneRaten) + ". " +
       "Noch " + fmtEuroKurz(gm.bisNaechsteStufe) + " bis " + fmtEuroKurz(gm.naechsteStufe) + ".";
 
     if (!hatGuthaben) {
@@ -1859,8 +1873,8 @@
       tun.textContent = "Für die Einzahlung fehlt das Bankguthaben.";
     } else if (gm.fehlbetrag <= 0) {
       tun.className = "notiz";
-      tun.textContent = gm.bestand > gm.soll
-        ? "Nichts zu tun — der Bestand liegt bereits über dem Soll."
+      tun.textContent = gm.vorhandeneRaten > gm.stufen
+        ? "Nichts zu tun — es liegen schon mehr Raten drin als nötig."
         : "Nichts zu tun.";
     } else if (gm.jetzt >= gm.fehlbetrag) {
       tun.className = "notiz tun";
